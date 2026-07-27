@@ -60,12 +60,13 @@ function render(result) {
 
 async function investigate(condition) {
   $("#error").hidden = true;
-  // Keep the previous answer on screen, dimmed, while the next one loads: blanking it made a
-  // working query look broken, and on a first run the page's own explanation stays readable.
-  $("#answer").classList.add("busy");
-  $("#loading").hidden = false;
+  // ONE status signal, in the status bar, in plain words. Three competing ones (a title, a
+  // "no source call yet" stamp that contradicted it mid-call, and a panel of internal
+  // vocabulary) over a dimmed body read as a broken page rather than a running query.
+  $("#spinner").hidden = false;
   $("#live-dot").classList.add("busy");
-  $("#answer-title").textContent = `Reconstructing ${condition}…`;
+  $("#answer-title").textContent = `Searching ClinicalTrials.gov for ${condition}…`;
+  $("#timestamp").textContent = "Live query running";
   try {
     const response = await fetch("/api/v1/lenses/trial-landscape/invoke", {
       method: "POST",
@@ -84,8 +85,7 @@ async function investigate(condition) {
     $("#error").hidden = false;
     $("#answer-title").textContent = "The source traversal did not complete";
   } finally {
-    $("#loading").hidden = true;
-    $("#answer").classList.remove("busy");
+    $("#spinner").hidden = true;
     $("#live-dot").classList.remove("busy");
   }
 }
