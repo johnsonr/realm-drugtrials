@@ -28,8 +28,14 @@ interface TrialGateway {
 }
 
 const gatewayOf = (ctx: GenericGatewayContext): TrialGateway => ctx as unknown as TrialGateway;
-const MAX_PAGES = 5;
-const PAGE_SIZE = 100;
+// Defaults only. Both are overridable per call — the producer declares them in
+// `producers/trials.yml`, so an installation tunes depth without editing this file.
+// ClinicalTrials.gov permits pageSize up to 1000, so the default sweep reaches 10,000
+// records: enough that a normal disease landscape completes rather than being truncated
+// at an arbitrary number. Me paces the calls against the declared `2/sec` cost bucket and
+// backs off on 429, so depth costs time, not correctness.
+const DEFAULT_MAX_PAGES = 10;
+const DEFAULT_PAGE_SIZE = 1000;
 const LANDSCAPE_FIELDS = [
   "NCTId", "BriefTitle", "OfficialTitle", "OverallStatus", "WhyStopped",
   "StartDate", "PrimaryCompletionDate", "CompletionDate", "StudyFirstPostDate",
@@ -72,9 +78,13 @@ export interface TrialSearchRunRecord {
  */
 export async function searchByDisease(
   ctx: GenericGatewayContext,
-  args: { queries: string[] },
+  args: { queries: string[]; pageSize?: number; maxPages?: number },
 ): Promise<TrialSearchRunRecord[]> {
   const api = gatewayOf(ctx).clinicalTrials;
+  // Clamped to what the source accepts, so a mis-set config degrades to a legal call
+  // rather than a 400 that reads as "no trials exist".
+  const pageSize = Math.min(Math.max(Number(args.pageSize) || DEFAULT_PAGE_SIZE, 1), 1000);
+  const maxPages = Math.max(Number(args.maxPages) || DEFAULT_MAX_PAGES, 1);
   const version = await api.getVersion({});
   const retrievedAt = new Date().toISOString();
   const runs: TrialSearchRunRecord[] = [];
@@ -87,7 +97,7 @@ export async function searchByDisease(
     do {
       const response = await api.searchStudies({
         "query.cond": query,
-        pageSize: PAGE_SIZE,
+        pageSize,
         countTotal: pages === 0,
         fields: LANDSCAPE_FIELDS,
         ...(pageToken ? { pageToken } : {}),
@@ -99,7 +109,7 @@ export async function searchByDisease(
       }));
       pageToken = response.nextPageToken;
       pages += 1;
-    } while (pageToken && pages < MAX_PAGES);
+    } while (pageToken && pages < maxPages);
 
     const capped = !!pageToken;
     const runId = `clinicaltrials.gov:${encodeURIComponent(query)}:${version.dataTimestamp ?? retrievedAt}`;

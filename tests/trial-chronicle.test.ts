@@ -26,6 +26,36 @@ describe("live adapter orchestration", () => {
     }));
   });
 
+  it("honours a caller-supplied sweep depth instead of a hardcoded cap", async () => {
+    // Depth is CONFIG (the producer declares it), not a constant: 500 records was an
+    // arbitrary ceiling nobody could reach. A capped sweep must still say so.
+    const searchStudies = vi.fn()
+      .mockResolvedValueOnce({ studies: [ctStudy("NCT00000001")], totalCount: 99, nextPageToken: "p2" })
+      .mockResolvedValueOnce({ studies: [ctStudy("NCT00000002")], nextPageToken: "p3" });
+    const ctx = mockGateway<GenericGatewayContext>({ clinicalTrials: {
+      getVersion: vi.fn().mockResolvedValue({ apiVersion: "2.0.5", dataTimestamp: "2026-07-24T09:00:05" }),
+      searchStudies,
+    } });
+
+    const [run] = await searchByDisease(ctx, { queries: ["Long COVID"], pageSize: 250, maxPages: 2 });
+
+    expect(searchStudies).toHaveBeenCalledTimes(2);
+    expect(searchStudies).toHaveBeenNthCalledWith(1, expect.objectContaining({ pageSize: 250 }));
+    expect(run.coverage[0]).toMatchObject({ state: "PARTIAL_PAGE_CAP", pagesFetched: 2 });
+  });
+
+  it("clamps a page size the source would reject", async () => {
+    const searchStudies = vi.fn().mockResolvedValueOnce({ studies: [ctStudy("NCT00000001")], totalCount: 1 });
+    const ctx = mockGateway<GenericGatewayContext>({ clinicalTrials: {
+      getVersion: vi.fn().mockResolvedValue({ apiVersion: "2.0.5", dataTimestamp: "2026-07-24T09:00:05" }),
+      searchStudies,
+    } });
+
+    await searchByDisease(ctx, { queries: ["Long COVID"], pageSize: 99999 });
+
+    expect(searchStudies).toHaveBeenNthCalledWith(1, expect.objectContaining({ pageSize: 1000 }));
+  });
+
   it("deduplicates selected ids before detail fetch", async () => {
     const getStudy = vi.fn().mockResolvedValue(ctStudy("NCT00000001"));
     const ctx = mockGateway<GenericGatewayContext>({ clinicalTrials: { getStudy } });

@@ -5,6 +5,13 @@
   kind: remote
   operation: searchByDisease
   keyArg: queries
+  # Sweep depth, as CONFIG rather than a constant in the handler: raise for an exhaustive
+  # landscape, lower for a cheap look. Me merges these into every call and paces them
+  # against the `clinicaltrials` bucket below, so depth costs time, not correctness — and
+  # whatever is reached is declared in TrialCoverage rather than silently truncated.
+  args:
+    pageSize: 1000
+    maxPages: 10
   records: "$[*]"
   cache:
     kind: ttl

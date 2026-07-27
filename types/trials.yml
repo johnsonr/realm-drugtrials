@@ -32,7 +32,10 @@
       recordKeyField: scopeQuery
       producer: trialsByDisease
       maxAnchors: 4
-      maxFanoutTotal: 800
+      # Must not re-truncate below the producer's sweep: the handler can now return up to
+      # pageSize*maxPages trials for a disease, and a ceiling under that would drop rows the
+      # coverage declaration says were fetched.
+      maxFanoutTotal: 10000
       brings:
         - childType: ClinicalTrial
           relationship: RETURNED
