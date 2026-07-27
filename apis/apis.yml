@@ -5,7 +5,7 @@
   type: openapi
   auth: none
   headers:
-    User-Agent: "TrialChronicle/0.1 (https://github.com/johnsonr/realm-drugtrials; assistant@embabel.com)"
+    User-Agent: "WhatsBeenTried.org/0.1 (https://github.com/johnsonr/realm-drugtrials; assistant@embabel.com)"
   operation-ids:
     - getVersion
     - searchStudies
@@ -16,7 +16,6 @@
   type: openapi
   auth: none
   headers:
-    User-Agent: "TrialChronicle/0.1 (https://github.com/johnsonr/realm-drugtrials; assistant@embabel.com)"
+    User-Agent: "WhatsBeenTried.org/0.1 (https://github.com/johnsonr/realm-drugtrials; assistant@embabel.com)"
   operation-ids:
     - summarizePubmed
-

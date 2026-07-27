@@ -1,6 +1,6 @@
 name: drugtrials
 description: |
-  Trial Chronicle answers “what research exists for my disease, what happened
+  WhatsBeenTried.org answers “what research exists for my disease, what happened
   to it, and what problems are visible?” from live public registries and
   literature. It uses Virtual Cypher to fetch only the evidence needed for a
   question, records source coverage, and never mirrors a trial registry.

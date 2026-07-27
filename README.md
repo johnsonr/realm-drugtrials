@@ -1,6 +1,6 @@
-# realm-drugtrials
+# realm-drugtrials — WhatsBeenTried.org
 
-**Trial Chronicle** is a live, disease-first clinical research investigation Realm for Embabel.
+**WhatsBeenTried.org** is a live, disease-first clinical research investigation Realm for Embabel.
 It answers questions such as:
 
 > What research exists for Long COVID? What is still active, what stopped, and which completed
@@ -68,8 +68,8 @@ Content-Type: application/json
 
 ## App
 
-The Realm ships the Trial Chronicle app in [`apps/`](apps/). Installing the Realm surfaces it
-in the artifact browser and serves it at `/apps/trial-chronicle.html` in an authenticated
+The Realm ships the WhatsBeenTried.org app in [`apps/`](apps/). Installing the Realm surfaces it
+in the artifact browser and serves it at `/apps/whatsbeentried.html` in an authenticated
 world session (a user app of the same name overrides it). The stylesheet and script are
 referenced by single-segment relative paths and the header image is inlined in the
 stylesheet, matching the host's flat `/apps/{name}` serving model.
@@ -98,7 +98,7 @@ curl -sS --get https://clinicaltrials.gov/api/v2/studies \
 - [`docs/RATE_LIMITS.md`](docs/RATE_LIMITS.md) — request budgets, batching, caches and public-service controls
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — public/private source expansion, jurisdictions, company context and conflicts-of-interest thought bubble
 
-The much larger prior-art and product evidence trail lives with the Trial Chronicle flagship
+The much larger prior-art and product evidence trail lives with the WhatsBeenTried.org flagship
 research in the target-customers repository; this repository is the executable Realm slice.
 
 ## Source terms
@@ -107,4 +107,3 @@ The Realm requests public factual metadata from ClinicalTrials.gov and NCBI E-ut
 not bulk-download PubMed abstracts or article full text. Deployers remain responsible for source
 terms, appropriate attribution, privacy, accessibility, medical disclaimers and jurisdictional
 requirements.
-

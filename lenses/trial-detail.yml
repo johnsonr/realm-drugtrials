@@ -1,5 +1,5 @@
 id: trial-detail
-name: Trial Chronicle — Trial Detail
+name: WhatsBeenTried.org — Trial Detail
 description: Protocol outcomes and PubMed-resolved references for one selected NCT record.
 params:
   - name: nctId

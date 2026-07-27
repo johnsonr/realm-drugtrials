@@ -1,3 +1,4 @@
+// WhatsBeenTried.org public workspace app.
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 const list = (value) => Array.isArray(value) ? value : [];
@@ -99,4 +100,3 @@ document.querySelectorAll("[data-condition]").forEach((button) => button.addEven
   $("#condition").value = button.dataset.condition;
   investigate(button.dataset.condition);
 }));
-

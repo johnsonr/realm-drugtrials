@@ -5,7 +5,7 @@ description: Investigate what clinical research exists for a disease, what happe
 
 # Investigate clinical research
 
-Use Trial Chronicle for disease-first questions such as:
+Use WhatsBeenTried.org for disease-first questions such as:
 
 - What trials exist for Long COVID, and which are active?
 - Which completed studies have results in the current registry record?
@@ -34,4 +34,3 @@ Use Trial Chronicle for disease-first questions such as:
 - Recruitment is not evidence of efficacy. Completion is not success. A publication link is not a
   quality assessment. Sponsor identity is not proof of legal corporate lineage.
 - “Failed” requires a typed axis and evidence. Do not use it as an unqualified trial state.
-

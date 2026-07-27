@@ -1,5 +1,5 @@
 id: trial-landscape
-name: Trial Chronicle — Disease Landscape
+name: WhatsBeenTried.org — Disease Landscape
 description: Live trial landscape, status problems, coverage, and source ledger for any disease.
 params:
   - name: condition

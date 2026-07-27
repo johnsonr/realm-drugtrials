@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ClinicalTrials.gov API v2 — Trial Chronicle subset
+  title: ClinicalTrials.gov API v2 — WhatsBeenTried.org subset
   version: 2.0.5
   description: Narrow local contract for the public endpoints used by this Realm.
 servers:

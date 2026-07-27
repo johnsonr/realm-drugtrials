@@ -3,28 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Trial Chronicle reconstructs the current clinical research landscape for any disease from live public evidence.">
-  <title>Trial Chronicle</title>
-  <link rel="stylesheet" href="./trial-chronicle.css">
+  <meta name="description" content="WhatsBeenTried.org shows what medical research exists for a disease, what stopped, what produced results, and what remains unknown.">
+  <title>WhatsBeenTried.org — the living record of medical research</title>
+  <link rel="stylesheet" href="./whatsbeentried.css">
 </head>
 <body>
   <header class="masthead">
     <nav class="shell topbar">
-      <a class="brand" href="#"><span class="brand-mark"><i></i><i></i><i></i></span>Trial Chronicle</a>
+      <a class="brand" href="#" aria-label="WhatsBeenTried.org home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-name">Whats<span>BeenTried</span><em>.org</em></span>
+      </a>
       <span class="mode"><b></b> live public evidence</span>
     </nav>
     <section class="shell hero">
-      <p class="eyebrow">Clinical research, reconstructed</p>
-      <h1>What research exists for my disease?</h1>
-      <p class="dek">Ask what is active, what stopped, and where results are missing from the current registry record. Every answer says what was searched, when, and what remains unknown.</p>
+      <p class="eyebrow">The living record of medical research</p>
+      <h1>What’s been <span>tried</span> for my disease?</h1>
+      <p class="dek">See what is active, what stopped, what produced results, and where the public record goes quiet. Every answer shows its sources, search time, coverage, and remaining unknowns.</p>
       <form id="question-form" class="ask">
         <label class="sr-only" for="condition">Disease or condition</label>
         <input id="condition" name="condition" value="Long COVID" autocomplete="off">
-        <button type="submit">Reconstruct the landscape <span>→</span></button>
+        <button type="submit">See what’s been tried <span>→</span></button>
       </form>
       <div class="examples">
         <button data-condition="Long COVID">Long COVID: what completed—and where are the results?</button>
-        <button data-condition="herpes vaccine">Herpes vaccines: what failed and what is still active?</button>
+        <button data-condition="Alzheimer disease">Alzheimer’s: what approaches are still active?</button>
         <button data-condition="glioblastoma">Glioblastoma: what is recruiting now?</button>
       </div>
     </section>
@@ -40,7 +43,7 @@
       <div id="answer" class="answer">
         <section class="answer-main">
           <p class="answer-kicker">A question worth answering</p>
-          <h2>Which Phase II Long COVID treatments completed—and where are their results?</h2>
+          <h2>What has been tried for Long COVID—and what happened?</h2>
           <p class="lede">Run the live query to turn a registry search into a status-aware evidence landscape. This interface never treats “completed” as “successful,” or “not found here” as “does not exist.”</p>
           <div class="query-contract">
             <article><span>01</span><h3>Scope</h3><p>Resolve disease language and exclusions before counting.</p></article>
@@ -73,8 +76,7 @@
     </section>
   </main>
 
-  <footer><div class="shell"><span>Trial Chronicle · public-interest clinical research intelligence</span><span>Not medical advice · verify consequential decisions at the cited source</span></div></footer>
-  <script src="./trial-chronicle.js"></script>
+  <footer><div class="shell"><span>WhatsBeenTried.org · the living public record of medical research</span><span>Not medical advice · verify consequential decisions at the cited source</span></div></footer>
+  <script src="./whatsbeentried.js"></script>
 </body>
 </html>
-
