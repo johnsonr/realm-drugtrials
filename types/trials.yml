@@ -1,0 +1,173 @@
+- name: DiseaseScope
+  userAnchor: false
+  description: |
+    A literal-seeded disease search scope. It is a query anchor, not a mirrored
+    disease ontology. The registryQuery is sent to ClinicalTrials.gov only when
+    a query traverses HAS_TRIAL_SEARCH.
+  properties:
+    registryQuery:
+      identity: true
+      description: "Condition expression sent to ClinicalTrials.gov."
+
+- name: TrialSearchRun
+  userAnchor: false
+  description: |
+    One source-bounded execution of a disease query. Its identity incorporates
+    the source data timestamp, making the evidence snapshot and coverage explicit.
+  properties:
+    runId: { identity: true, description: "Stable source/query/data-version identity." }
+    scopeQuery: "Exact condition expression used at the source."
+    source: "Registry queried."
+    dataTimestamp: "Registry dataset timestamp reported by the source."
+    retrievedAt: "When this execution fetched the source."
+    sourceTotal: { type: int, description: "Total matches reported by the source, if supplied." }
+    recordsFetched: { type: int, description: "Records actually fetched and normalized." }
+    pagesFetched: { type: int, description: "Pages fetched."
+    }
+    capped: { type: boolean, description: "True when a deliberate page cap left more source pages." }
+  virtualJoins:
+    - anchorLabel: DiseaseScope
+      relationship: HAS_TRIAL_SEARCH
+      keyField: registryQuery
+      recordKeyField: scopeQuery
+      producer: trialsByDisease
+      maxAnchors: 4
+      maxFanoutTotal: 800
+      brings:
+        - childType: ClinicalTrial
+          relationship: RETURNED
+          records: "$.trials[*]"
+          id: registryRecordId
+        - childType: TrialCoverage
+          relationship: HAS_COVERAGE
+          records: "$.coverage[*]"
+          id: coverageId
+
+- name: TrialCoverage
+  userAnchor: false
+  description: "Machine-readable declaration of what a source call did and did not cover."
+  properties:
+    coverageId: { identity: true, description: "Coverage declaration identity." }
+    scopeQuery: "Exact source query."
+    source: "Source name."
+    state: "COMPLETE or PARTIAL_PAGE_CAP."
+    detail: "Human-readable coverage explanation."
+    sourceTotal: { type: int, description: "Total matches reported by source, if available." }
+    recordsFetched: { type: int, description: "Records fetched." }
+    pagesFetched: { type: int, description: "Pages fetched." }
+    dataTimestamp: "Source dataset timestamp."
+    retrievedAt: "Retrieval timestamp."
+
+- name: ClinicalTrial
+  userAnchor: false
+  description: |
+    A current ClinicalTrials.gov study record, transiently materialized. A
+    registry record is evidence about the study, not a guarantee of efficacy,
+    publication, regulatory approval, or absence of misconduct.
+  properties:
+    registryRecordId: { identity: true, description: "ClinicalTrials.gov NCT identifier." }
+    nctId: "ClinicalTrials.gov NCT identifier."
+    title: "Brief public title."
+    officialTitle: "Official title, if present."
+    overallStatus: "Current registry recruitment/conduct status."
+    studyType: "INTERVENTIONAL, OBSERVATIONAL, EXPANDED_ACCESS, or source value."
+    phases: { cardinality: LIST, description: "Registry phases."
+    }
+    sponsor: "Lead sponsor named by the registry."
+    sponsorClass: "Registry sponsor class."
+    collaborators: { cardinality: LIST, description: "Named collaborators." }
+    conditions: { cardinality: LIST, description: "Registered conditions." }
+    keywords: { cardinality: LIST, description: "Registered keywords." }
+    interventions: { cardinality: LIST, description: "Registered intervention names." }
+    interventionTypes: { cardinality: LIST, description: "Registered intervention types." }
+    countries: { cardinality: LIST, description: "Countries represented by registered locations." }
+    enrollment: { type: int, description: "Actual or estimated enrollment count."
+    }
+    startDate: "Registered start date."
+    primaryCompletionDate: "Registered primary completion date."
+    completionDate: "Registered completion date."
+    firstPosted: "First-posted date."
+    lastUpdated: "Last update posted date."
+    hasResults: { type: boolean, description: "Whether the current registry record includes a results section." }
+    whyStopped: "Structured registry reason for stopping, when present."
+    registryUrl: "Direct ClinicalTrials.gov record link."
+
+- name: TrialDetail
+  userAnchor: false
+  description: "Current expanded protocol detail for one selected trial."
+  properties:
+    detailId: { identity: true, description: "Source-qualified detail identity." }
+    nctId: "NCT id linking this detail to its trial anchor."
+    briefSummary: "Registry brief summary."
+    detailedDescription: "Registry detailed description."
+    enrollment: { type: int, description: "Actual or estimated enrollment."
+    }
+    sourceUpdatedAt: "Registry last-update date."
+    hasResults: { type: boolean, description: "Current registry record includes results."
+    }
+    rawOutcomeCount: { type: int, description: "Protocol outcomes extracted."
+    }
+    rawReferenceCount: { type: int, description: "PMID-bearing registry references extracted."
+    }
+  virtualJoins:
+    - anchorLabel: ClinicalTrial
+      relationship: HAS_CURRENT_DETAIL
+      keyField: registryRecordId
+      recordKeyField: nctId
+      producer: trialDetailsByNct
+      maxAnchors: 20
+      maxFanoutTotal: 20
+      brings:
+        - childType: TrialOutcome
+          relationship: DECLARES_OUTCOME
+          records: "$.outcomes[*]"
+          id: outcomeId
+        - childType: TrialReference
+          relationship: CITES_REFERENCE
+          records: "$.references[*]"
+          id: referenceId
+
+- name: TrialOutcome
+  userAnchor: false
+  description: "A primary, secondary, or other outcome declared in a trial protocol."
+  properties:
+    outcomeId: { identity: true, description: "NCT/type/ordinal identity." }
+    nctId: "Parent NCT id."
+    outcomeType: "PRIMARY, SECONDARY, or OTHER."
+    ordinal: { type: int, description: "Position within the outcome group."
+    }
+    measure: "Outcome measure."
+    description: "Outcome description."
+    timeFrame: "Registered measurement time frame."
+
+- name: TrialReference
+  userAnchor: false
+  description: "A PMID-bearing publication reference declared in a registry record."
+  properties:
+    referenceId: { identity: true, description: "Trial/PMID/ordinal identity." }
+    nctId: "Parent NCT id."
+    pmid: "PubMed identifier."
+    type: "Registry reference type."
+    citation: "Citation as supplied by the registry."
+
+- name: Publication
+  userAnchor: false
+  description: "PubMed metadata resolved live for a trial's registered PMID reference."
+  properties:
+    pmid: { identity: true, description: "PubMed identifier." }
+    title: "Publication title."
+    publishedDate: "Publication date as PubMed reports it."
+    journal: "Journal name."
+    authorNames: { cardinality: LIST, description: "Author names."
+    }
+    doi: "DOI, when PubMed supplies one."
+    pubmedUrl: "Direct PubMed link."
+  virtualJoins:
+    - anchorLabel: TrialReference
+      relationship: RESOLVES_TO
+      keyField: pmid
+      recordKeyField: pmid
+      producer: publicationsByPmid
+      maxAnchors: 200
+      maxFanoutTotal: 200
+

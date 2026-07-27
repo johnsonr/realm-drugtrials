@@ -1,0 +1,93 @@
+# Reusable Virtual Cypher views. The node views compose into Lenses (and other
+# views) by being referenced as labels; the tabular views are directly runnable
+# reports through POST /api/v1/views/{name}/invoke.
+
+- name: DiseaseTrialRuns
+  description: One live ClinicalTrials.gov search execution, with its trials and coverage reachable from the returned node.
+  outputLabel: TrialSearchRun
+  params:
+    registryQuery:
+      type: string
+      default: '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"'
+      description: "The exact ClinicalTrials.gov condition expression."
+  cypher: |
+    MATCH (scope:DiseaseScope {registryQuery: $registryQuery})-[:HAS_TRIAL_SEARCH]->(run:TrialSearchRun)
+    RETURN run
+
+- name: DiseaseTrials
+  description: Current trial nodes returned for a disease expression; composable into downstream trial-detail traversals.
+  outputLabel: ClinicalTrial
+  params:
+    registryQuery:
+      type: string
+      default: '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"'
+      description: "The exact ClinicalTrials.gov condition expression."
+  cypher: |
+    MATCH (scope:DiseaseScope {registryQuery: $registryQuery})-[:HAS_TRIAL_SEARCH]->(run:TrialSearchRun)
+    MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
+    RETURN DISTINCT trial
+
+- name: TrialProtocol
+  description: Current protocol detail for one NCT id; references can then resolve to PubMed.
+  outputLabel: TrialDetail
+  params:
+    nctId:
+      type: string
+      default: NCT05585970
+      description: "ClinicalTrials.gov NCT identifier."
+  cypher: |
+    MATCH (trial:ClinicalTrial {registryRecordId: $nctId})-[:HAS_CURRENT_DETAIL]->(detail:TrialDetail)
+    RETURN detail
+
+- name: TrialLandscape
+  description: Directly runnable live disease landscape with source coverage and current registry fields.
+  params:
+    registryQuery:
+      type: string
+      default: '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"'
+      description: "The exact ClinicalTrials.gov condition expression."
+  cypher: |
+    MATCH (run:DiseaseTrialRuns {registryQuery: $registryQuery})
+    MATCH (run)-[:HAS_COVERAGE]->(coverage:TrialCoverage)
+    OPTIONAL MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
+    RETURN run.dataTimestamp AS dataTimestamp, run.retrievedAt AS retrievedAt,
+           coverage.state AS coverageState, coverage.detail AS coverageDetail,
+           trial.nctId AS nctId, trial.title AS title, trial.overallStatus AS status,
+           trial.studyType AS studyType, trial.phases AS phases, trial.sponsor AS sponsor,
+           trial.countries AS countries, trial.hasResults AS hasRegistryResults,
+           trial.whyStopped AS whyStopped, trial.registryUrl AS registryUrl
+    ORDER BY trial.lastUpdated DESC, trial.nctId ASC
+
+- name: CompletedTrialsWithoutRegistryResults
+  description: Completed trials whose current ClinicalTrials.gov record has no results section; an investigation queue, not a legal finding.
+  params:
+    registryQuery:
+      type: string
+      default: '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"'
+      description: "The exact ClinicalTrials.gov condition expression."
+  cypher: |
+    MATCH (trial:DiseaseTrials {registryQuery: $registryQuery})
+    WHERE trial.overallStatus = 'COMPLETED' AND trial.hasResults = false
+    RETURN trial.nctId AS nctId, trial.title AS title, trial.sponsor AS sponsor,
+           trial.completionDate AS completionDate, trial.lastUpdated AS lastUpdated,
+           trial.registryUrl AS registryUrl
+    ORDER BY trial.completionDate ASC, trial.nctId ASC
+
+- name: RecruitingTrialsByCountry
+  description: Currently recruiting disease trials with at least one registered location in a named country.
+  params:
+    registryQuery:
+      type: string
+      default: '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"'
+      description: "The exact ClinicalTrials.gov condition expression."
+    country:
+      type: string
+      default: Australia
+      description: "Country name as ClinicalTrials.gov reports it, e.g. Australia."
+  cypher: |
+    MATCH (trial:DiseaseTrials {registryQuery: $registryQuery})
+    WHERE trial.overallStatus = 'RECRUITING' AND $country IN trial.countries
+    RETURN trial.nctId AS nctId, trial.title AS title, trial.sponsor AS sponsor,
+           trial.phases AS phases, trial.countries AS countries, trial.registryUrl AS registryUrl
+    ORDER BY trial.nctId ASC
+

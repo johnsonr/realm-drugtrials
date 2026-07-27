@@ -1,0 +1,57 @@
+id: trial-detail
+name: Trial Chronicle — Trial Detail
+description: Protocol outcomes and PubMed-resolved references for one selected NCT record.
+params:
+  - name: nctId
+    type: STRING
+    label: NCT identifier
+    default: NCT05585970
+spec:
+  kind: cypherscript
+  script: |
+    const A = (typeof lensArgs !== "undefined") ? lensArgs : {};
+    const nctId = String(A.nctId || "").trim().toUpperCase();
+    if (!/^NCT[0-9]{8}$/.test(nctId)) throw new Error("Expected an NCT identifier such as NCT05585970.");
+    // TrialProtocol is a composable node view. It owns the live detail fetch;
+    // this Lens owns grouping and public presentation.
+    const cypher = `MATCH (detail:TrialProtocol {nctId:'${nctId}'})
+                    OPTIONAL MATCH (detail)-[:DECLARES_OUTCOME]->(outcome:TrialOutcome)
+                    OPTIONAL MATCH (detail)-[:CITES_REFERENCE]->(ref:TrialReference)
+                    OPTIONAL MATCH (ref)-[:RESOLVES_TO]->(publication:Publication)
+                    RETURN detail.detailId AS detailId, detail.briefSummary AS briefSummary,
+                           detail.detailedDescription AS detailedDescription, detail.enrollment AS enrollment,
+                           detail.sourceUpdatedAt AS sourceUpdatedAt, detail.hasResults AS hasResults,
+                           outcome.outcomeId AS outcomeId, outcome.outcomeType AS outcomeType,
+                           outcome.ordinal AS outcomeOrdinal, outcome.measure AS outcomeMeasure,
+                           outcome.description AS outcomeDescription, outcome.timeFrame AS outcomeTimeFrame,
+                           ref.referenceId AS referenceId, ref.pmid AS pmid, ref.type AS referenceType,
+                           ref.citation AS citation, publication.title AS publicationTitle,
+                           publication.publishedDate AS publishedDate, publication.journal AS journal,
+                           publication.authorNames AS authorNames, publication.doi AS doi,
+                           publication.pubmedUrl AS pubmedUrl`;
+    const response = await gateway.kg.query({ cypher, params: JSON.stringify({}) });
+    const rows = (response && response.rows) ? response.rows : (response || []);
+    const first = rows[0] || {};
+    const uniqueBy = (items, key) => Array.from(new Map(items.filter(x => x[key]).map(x => [x[key], x])).values());
+    const outcomes = uniqueBy(rows.map(r => ({
+      outcomeId: r.outcomeId, type: r.outcomeType, ordinal: r.outcomeOrdinal,
+      measure: r.outcomeMeasure, description: r.outcomeDescription, timeFrame: r.outcomeTimeFrame,
+    })), "outcomeId");
+    const publications = uniqueBy(rows.map(r => ({
+      referenceId: r.referenceId, pmid: r.pmid, referenceType: r.referenceType,
+      registryCitation: r.citation, title: r.publicationTitle, publishedDate: r.publishedDate,
+      journal: r.journal, authors: r.authorNames || [], doi: r.doi, url: r.pubmedUrl,
+      resolutionState: r.publicationTitle ? "RESOLVED_IN_PUBMED" : "REFERENCE_ONLY",
+    })), "referenceId");
+    await gateway.lens.present({ content: JSON.stringify({
+      kind: "trial-chronicle-detail", schemaVersion: "trial-chronicle-detail/v1", nctId,
+      detail: { summary: first.briefSummary, description: first.detailedDescription,
+        enrollment: first.enrollment, sourceUpdatedAt: first.sourceUpdatedAt, hasResults: !!first.hasResults },
+      outcomes, publications,
+      sourceLedger: [
+        { source: "ClinicalTrials.gov", record: `https://clinicaltrials.gov/study/${nctId}` },
+        { source: "PubMed", operation: "batched ESummary", resolvedReferences: publications.filter(p => p.resolutionState === "RESOLVED_IN_PUBMED").length },
+      ],
+      caveats: ["Registry citations are declarations by the record submitter; PubMed resolution verifies metadata, not study quality."],
+      execution: { modelUsedForFacts: false, persistedRegistryRecords: false, virtualCypher: true },
+    }) });

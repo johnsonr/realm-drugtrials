@@ -1,0 +1,32 @@
+name: drugtrials
+description: |
+  Trial Chronicle answers “what research exists for my disease, what happened
+  to it, and what problems are visible?” from live public registries and
+  literature. It uses Virtual Cypher to fetch only the evidence needed for a
+  question, records source coverage, and never mirrors a trial registry.
+version: 0.1.0
+author: Rod Johnson
+url: https://github.com/johnsonr/realm-drugtrials
+tags:
+  - clinical-trials
+  - public-good
+  - virtual-cypher
+  - evidence
+  - health
+exports:
+  - ClinicalTrial
+  - TrialSearchRun
+  - TrialCoverage
+  - TrialDetail
+  - TrialOutcome
+  - TrialReference
+  - Publication
+  - trial_chronicle
+  - clinical_trials
+  - pubmed
+  - DiseaseTrialRuns
+  - DiseaseTrials
+  - TrialProtocol
+  - TrialLandscape
+  - CompletedTrialsWithoutRegistryResults
+  - RecruitingTrialsByCountry

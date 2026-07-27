@@ -1,0 +1,27 @@
+openapi: 3.0.3
+info:
+  title: NCBI E-utilities — PubMed ESummary subset
+  version: "2.0"
+  description: Narrow local contract for batched PubMed metadata resolution.
+servers:
+  - url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils
+paths:
+  /esummary.fcgi:
+    get:
+      operationId: summarizePubmed
+      summary: Resolve up to 200 PubMed identifiers in one request.
+      parameters:
+        - { name: db, in: query, required: true, schema: { type: string, enum: [pubmed] } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: retmode, in: query, required: true, schema: { type: string, enum: [json] } }
+        - { name: tool, in: query, required: false, schema: { type: string } }
+        - { name: email, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: PubMed document summaries.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+

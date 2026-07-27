@@ -1,0 +1,143 @@
+id: trial-landscape
+name: Trial Chronicle — Disease Landscape
+description: Live trial landscape, status problems, coverage, and source ledger for any disease.
+params:
+  - name: condition
+    type: STRING
+    label: Disease or condition
+    default: Long COVID
+  - name: phases
+    type: STRING
+    label: Phases (comma-separated)
+    default: ""
+  - name: countries
+    type: STRING
+    label: Countries (comma-separated)
+    default: ""
+  - name: statuses
+    type: STRING
+    label: Statuses (comma-separated)
+    default: ""
+spec:
+  kind: cypherscript
+  script: |
+    function list(value) {
+      return String(value || "").split(",").map(x => x.trim().toUpperCase()).filter(Boolean);
+    }
+    function sourceQuery(condition) {
+      const c = String(condition || "Long COVID").trim();
+      const key = c.toLowerCase();
+      if (key === "long covid" || key === "pasc" || key === "post-covid condition") {
+        return '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"';
+      }
+      if (key === "herpes vaccine" || key === "herpes simplex vaccine" || key === "hsv vaccine") {
+        return '("herpes simplex" OR HSV-1 OR HSV-2) AND vaccine NOT zoster';
+      }
+      return c;
+    }
+    function escapedLiteral(value) { return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
+    function findingFor(t) {
+      const out = [];
+      const status = String(t.overallStatus || "UNKNOWN");
+      if (["TERMINATED", "WITHDRAWN", "SUSPENDED"].includes(status)) {
+        out.push({
+          findingId: `${t.nctId}:conduct:${status}`,
+          nctId: t.nctId,
+          severity: "attention",
+          kind: "CONDUCT_STATUS",
+          statement: `Registry status is ${status.toLowerCase().replace(/_/g, " ")}.`,
+          basis: t.whyStopped
+            ? `ClinicalTrials.gov records “why stopped”: ${t.whyStopped}`
+            : "ClinicalTrials.gov currently records this status; no structured reason was present.",
+        });
+      }
+      if (status === "COMPLETED" && !t.hasResults) {
+        out.push({
+          findingId: `${t.nctId}:results:not-present`,
+          nctId: t.nctId,
+          severity: "attention",
+          kind: "REGISTRY_RESULTS_NOT_PRESENT",
+          statement: "Completed in the current registry record, with no posted results section.",
+          basis: "Absence here is not proof that results were never published elsewhere; follow the trial references and literature.",
+        });
+      }
+      return out;
+    }
+
+    const A = (typeof lensArgs !== "undefined") ? lensArgs : {};
+    const condition = String(A.condition || "Long COVID").trim();
+    const registryQuery = sourceQuery(condition);
+    const phases = list(A.phases);
+    const countries = list(A.countries);
+    const statuses = list(A.statuses);
+    // Lens → View composition: this parameterized node-view is expanded before
+    // Virtual Cypher planning. The Lens owns presentation; DiseaseTrialRuns owns
+    // the reusable graph selection and can also be invoked independently.
+    const cypher = `MATCH (run:DiseaseTrialRuns {registryQuery:'${escapedLiteral(registryQuery)}'})
+                    MATCH (run)-[:HAS_COVERAGE]->(coverage:TrialCoverage)
+                    OPTIONAL MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
+                    RETURN run.runId AS runId, run.source AS source, run.dataTimestamp AS dataTimestamp,
+                           run.retrievedAt AS retrievedAt, run.sourceTotal AS sourceTotal,
+                           run.recordsFetched AS recordsFetched, run.pagesFetched AS pagesFetched,
+                           run.capped AS capped, coverage.state AS coverageState,
+                           coverage.detail AS coverageDetail, trial.registryRecordId AS registryRecordId,
+                           trial.nctId AS nctId, trial.title AS title, trial.officialTitle AS officialTitle,
+                           trial.overallStatus AS overallStatus, trial.studyType AS studyType,
+                           trial.phases AS phases, trial.sponsor AS sponsor, trial.sponsorClass AS sponsorClass,
+                           trial.collaborators AS collaborators, trial.conditions AS conditions,
+                           trial.interventions AS interventions, trial.interventionTypes AS interventionTypes,
+                           trial.countries AS countries, trial.enrollment AS enrollment,
+                           trial.startDate AS startDate, trial.primaryCompletionDate AS primaryCompletionDate,
+                           trial.completionDate AS completionDate, trial.firstPosted AS firstPosted,
+                           trial.lastUpdated AS lastUpdated, trial.hasResults AS hasResults,
+                           trial.whyStopped AS whyStopped, trial.registryUrl AS registryUrl
+                    ORDER BY trial.lastUpdated DESC, trial.nctId ASC`;
+    const response = await gateway.kg.query({ cypher, params: JSON.stringify({}) });
+    const rows = (response && response.rows) ? response.rows : (response || []);
+    const meta = rows[0] || {};
+    const all = rows.filter(r => r && r.nctId).map(r => ({
+      registryRecordId: r.registryRecordId, nctId: r.nctId, title: r.title,
+      officialTitle: r.officialTitle, overallStatus: r.overallStatus,
+      studyType: r.studyType, phases: r.phases || [], sponsor: r.sponsor,
+      sponsorClass: r.sponsorClass, collaborators: r.collaborators || [],
+      conditions: r.conditions || [], interventions: r.interventions || [],
+      interventionTypes: r.interventionTypes || [], countries: r.countries || [],
+      enrollment: r.enrollment, startDate: r.startDate,
+      primaryCompletionDate: r.primaryCompletionDate, completionDate: r.completionDate,
+      firstPosted: r.firstPosted, lastUpdated: r.lastUpdated,
+      hasResults: !!r.hasResults, whyStopped: r.whyStopped, registryUrl: r.registryUrl,
+    }));
+    const intersects = (actual, selected) => !selected.length || (actual || []).some(v => selected.includes(String(v).toUpperCase()));
+    const trials = all.filter(t =>
+      intersects(t.phases, phases) && intersects(t.countries, countries) &&
+      (!statuses.length || statuses.includes(String(t.overallStatus || "").toUpperCase()))
+    );
+    const findings = trials.flatMap(findingFor);
+    const counts = trials.reduce((acc, t) => {
+      const key = t.overallStatus || "UNKNOWN"; acc[key] = (acc[key] || 0) + 1; return acc;
+    }, {});
+    const result = {
+      kind: "trial-chronicle",
+      schemaVersion: "trial-chronicle-answer/v1",
+      question: `What clinical research exists for ${condition}, and what problems are visible?`,
+      scope: { condition, registryQuery, phases, countries, statuses },
+      summary: { matchingTrials: trials.length, sourceMatches: meta.sourceTotal || all.length, byStatus: counts, findings: findings.length },
+      coverage: {
+        state: meta.coverageState || "UNKNOWN", detail: meta.coverageDetail || "No coverage declaration returned.",
+        recordsFetched: meta.recordsFetched || 0, pagesFetched: meta.pagesFetched || 0,
+      },
+      trials,
+      findings,
+      unknowns: [
+        "No registry can prove that all relevant research was registered or published.",
+        "A missing results section here may coexist with a journal publication elsewhere.",
+        "Sponsor names are source strings until resolved onto a company identity spine.",
+      ],
+      sourceLedger: [{
+        source: meta.source || "ClinicalTrials.gov", dataTimestamp: meta.dataTimestamp,
+        retrievedAt: meta.retrievedAt, query: registryQuery,
+        url: "https://clinicaltrials.gov/data-api/api",
+      }],
+      execution: { modelUsedForFacts: false, persistedRegistryRecords: false, virtualCypher: true },
+    };
+    await gateway.lens.present({ content: JSON.stringify(result) });

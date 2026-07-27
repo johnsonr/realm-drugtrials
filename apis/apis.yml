@@ -1,0 +1,22 @@
+# Narrow, vendored OpenAPI descriptions for the exact public endpoints this
+# Realm uses. Neither source requires a secret for the MVP.
+- url: clinicaltrials-v2.yml
+  name: clinical_trials
+  type: openapi
+  auth: none
+  headers:
+    User-Agent: "TrialChronicle/0.1 (https://github.com/johnsonr/realm-drugtrials; assistant@embabel.com)"
+  operation-ids:
+    - getVersion
+    - searchStudies
+    - getStudy
+
+- url: ncbi-eutils.yml
+  name: pubmed
+  type: openapi
+  auth: none
+  headers:
+    User-Agent: "TrialChronicle/0.1 (https://github.com/johnsonr/realm-drugtrials; assistant@embabel.com)"
+  operation-ids:
+    - summarizePubmed
+

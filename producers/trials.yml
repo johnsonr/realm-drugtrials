@@ -1,0 +1,42 @@
+# ClinicalTrials.gov search results are already nested records. `brings` in the
+# target type turns each run into a small transient evidence subgraph in one
+# materialization pass. No registry row is bulk-loaded or persisted.
+- name: trialsByDisease
+  kind: remote
+  operation: searchByDisease
+  keyArg: queries
+  records: "$[*]"
+  cache:
+    kind: ttl
+    seconds: 21600
+  cost:
+    bucket: clinicaltrials
+    rate: "2/sec"
+    yield: high
+
+- name: trialDetailsByNct
+  kind: remote
+  operation: detailsByNctIds
+  keyArg: nctIds
+  records: "$[*]"
+  cache:
+    kind: ttl
+    seconds: 21600
+  cost:
+    bucket: clinicaltrials
+    rate: "2/sec"
+    yield: high
+
+- name: publicationsByPmid
+  kind: remote
+  operation: publicationsByPmid
+  keyArg: pmids
+  records: "$[*]"
+  cache:
+    kind: ttl
+    seconds: 86400
+  cost:
+    bucket: ncbi-eutils
+    rate: "3/sec"
+    yield: high
+

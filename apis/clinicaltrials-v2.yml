@@ -1,0 +1,67 @@
+openapi: 3.0.3
+info:
+  title: ClinicalTrials.gov API v2 — Trial Chronicle subset
+  version: 2.0.5
+  description: Narrow local contract for the public endpoints used by this Realm.
+servers:
+  - url: https://clinicaltrials.gov/api/v2
+paths:
+  /version:
+    get:
+      operationId: getVersion
+      summary: Read the registry API and data version.
+      responses:
+        "200":
+          description: Version metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /studies:
+    get:
+      operationId: searchStudies
+      summary: Search current ClinicalTrials.gov study records by condition.
+      parameters:
+        - name: query.cond
+          in: query
+          required: true
+          schema: { type: string }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+        - name: pageToken
+          in: query
+          schema: { type: string }
+        - name: countTotal
+          in: query
+          schema: { type: boolean, default: false }
+        - name: fields
+          in: query
+          description: Comma-separated ClinicalTrials.gov field names used as a response field mask.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Page of study records.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /studies/{nctId}:
+    get:
+      operationId: getStudy
+      summary: Fetch the current full record for one NCT identifier.
+      parameters:
+        - name: nctId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^NCT[0-9]{8}$" }
+      responses:
+        "200":
+          description: Full study record.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
