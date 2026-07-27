@@ -133,25 +133,32 @@ function renderTimeline(trials) {
 
   const cols = shown.map((y) => {
     const s = started.get(y) || 0, c = completed.get(y) || 0;
+    // Anything past this year has not happened: those completions are the registry's PLANNED
+    // dates. Hatched, not solid, so a projection is never read as a result.
+    const future = y > thisYear;
+    const startedTip = future ? `${y}: ${s} due to start` : `${y}: ${s} started`;
+    const doneTip = future ? `${y}: ${c} due to complete` : `${y}: ${c} completed`;
     return `
-      <div class="tl-col">
+      <div class="tl-col${y === thisYear ? " now" : ""}${future ? " future" : ""}">
+        ${y === thisYear ? '<span class="now-flag">we are here</span><span class="now-line"></span>' : ""}
         <div class="tl-pair">
-          <span class="tl-bar started" style="height:${(s / max) * 100}%" title="${y}: ${s} started"></span>
-          <span class="tl-bar completed" style="height:${(c / max) * 100}%" title="${y}: ${c} completed"></span>
+          <span class="tl-bar started" style="height:${(s / max) * 100}%" title="${escapeHtml(startedTip)}"></span>
+          <span class="tl-bar completed" style="height:${(c / max) * 100}%" title="${escapeHtml(doneTip)}"></span>
         </div>
-        <span class="tl-year${y === thisYear ? " now" : ""}">${escapeHtml(String(y).slice(2))}</span>
+        <span class="tl-year${y === thisYear ? " now" : ""}">${escapeHtml(String(y))}</span>
       </div>`;
   }).join("");
 
   host.hidden = false;
   host.innerHTML = `
     <div class="viz-head">
-      <p class="answer-kicker">When these trials started and finished</p>
+      <p class="answer-kicker">When these trials started, and when they are due to finish</p>
       <span class="viz-note">Registered dates · ${escapeHtml(stopped)} stopped early (terminated, withdrawn or suspended)</span>
     </div>
     <div class="tl-legend">
       <span><i style="background:${C_STARTED}"></i>Started</span>
       <span><i style="background:${C_COMPLETED}"></i>Completed</span>
+      <span><i class="hatch"></i>Planned, not yet happened</span>
       <span class="viz-note">Peak ${escapeHtml(max)} trials in a year</span>
     </div>
     <div class="tl-chart" style="--started:${C_STARTED};--completed:${C_COMPLETED}">${cols}</div>
