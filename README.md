@@ -66,14 +66,13 @@ Content-Type: application/json
 {"args":{"condition":"Long COVID","phases":"","countries":"","statuses":""}}
 ```
 
-## Workspace app
+## App
 
-Standalone apps cannot yet be delivered by a Realm in the intended product model; see
-[`embabel/me#563`](https://github.com/embabel/me/issues/563). Until that lands, copy the contents of
-[`workspace-app/`](workspace-app/) into the world's `data/apps/` directory and open
-`/apps/trial-chronicle.html` in an authenticated workspace session. The stylesheet, script and
-generated header image use relative paths, so the directory can later move into Realm app
-packaging unchanged.
+The Realm ships the Trial Chronicle app in [`apps/`](apps/). Installing the Realm surfaces it
+in the artifact browser and serves it at `/apps/trial-chronicle.html` in an authenticated
+world session (a user app of the same name overrides it). The stylesheet and script are
+referenced by single-segment relative paths and the header image is inlined in the
+stylesheet, matching the host's flat `/apps/{name}` serving model.
 
 ## Build and verify
 
