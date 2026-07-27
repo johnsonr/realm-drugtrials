@@ -77,6 +77,7 @@ spec:
                     MATCH (run)-[:HAS_COVERAGE]->(coverage:TrialCoverage)
                     OPTIONAL MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
                     RETURN run.runId AS runId, run.source AS source, run.dataTimestamp AS dataTimestamp,
+                           run.scopeQuery AS scopeQuery,
                            run.retrievedAt AS retrievedAt, run.sourceTotal AS sourceTotal,
                            run.recordsFetched AS recordsFetched, run.pagesFetched AS pagesFetched,
                            run.capped AS capped, coverage.state AS coverageState,
@@ -135,7 +136,11 @@ spec:
       ],
       sourceLedger: [{
         source: meta.source || "ClinicalTrials.gov", dataTimestamp: meta.dataTimestamp,
-        retrievedAt: meta.retrievedAt, query: registryQuery,
+        retrievedAt: meta.retrievedAt,
+        // What the SOURCE was asked. The producer may rewrite the phrase into the registry's own
+        // query language, so showing the phrase here would hide the search that actually ran.
+        query: meta.scopeQuery || registryQuery,
+        asked: condition,
         url: "https://clinicaltrials.gov/data-api/api",
       }],
       execution: { modelUsedForFacts: false, persistedRegistryRecords: false, virtualCypher: true },

@@ -12,6 +12,32 @@
   args:
     pageSize: 1000
     maxPages: 10
+  # The registry speaks Essie, where AND/OR/NOT are operators ONLY in uppercase — so a natural
+  # phrase like "parkinsons and anxiety" returns 2 trials where "Parkinson AND anxiety" returns 64.
+  # A plausible number is worse than an error, so the phrase is rewritten into the source's own
+  # language before the call. The rewrite is cached, echoed back in the run's scopeQuery, and falls
+  # back to the phrase verbatim if it fails.
+  keyTransform:
+    kind: ai
+    instruction: |
+      Rewrite a disease phrase as a ClinicalTrials.gov Essie expression for the `query.cond` field.
+
+      Rules:
+      - AND, OR and NOT are operators and MUST be uppercase; lowercase reads as a search term.
+      - Quote multi-word phrases.
+      - Expand a lay or abbreviated name to the registered condition terms it covers, OR-ed together.
+      - Express exclusions ("other than X", "excluding X", "not X") with NOT.
+      - Return the expression only. Never add commentary, quotes around the whole expression, or a
+        field name.
+    examples:
+      - input: "parkinsons and anxiety"
+        output: '(Parkinson Disease OR Parkinsonism) AND (Anxiety OR "Anxiety Disorders")'
+      - input: "respiratory diseases other than covid"
+        output: '"Respiratory Tract Diseases" NOT (COVID-19 OR "Post-COVID Condition")'
+      - input: "Long COVID"
+        output: '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"'
+      - input: "herpes vaccine"
+        output: '("Herpes Simplex" OR HSV-1 OR HSV-2) AND Vaccines NOT Zoster'
   records: "$[*]"
   cache:
     kind: ttl
