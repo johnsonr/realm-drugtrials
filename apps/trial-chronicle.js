@@ -60,7 +60,9 @@ function render(result) {
 
 async function investigate(condition) {
   $("#error").hidden = true;
-  $("#answer").hidden = true;
+  // Keep the previous answer on screen, dimmed, while the next one loads: blanking it made a
+  // working query look broken, and on a first run the page's own explanation stays readable.
+  $("#answer").classList.add("busy");
   $("#loading").hidden = false;
   $("#live-dot").classList.add("busy");
   $("#answer-title").textContent = `Reconstructing ${condition}…`;
@@ -83,6 +85,7 @@ async function investigate(condition) {
     $("#answer-title").textContent = "The source traversal did not complete";
   } finally {
     $("#loading").hidden = true;
+    $("#answer").classList.remove("busy");
     $("#live-dot").classList.remove("busy");
   }
 }
