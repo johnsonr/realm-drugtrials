@@ -16,7 +16,8 @@
     the source data timestamp, making the evidence snapshot and coverage explicit.
   properties:
     runId: { identity: true, description: "Stable source/query/data-version identity." }
-    scopeQuery: "Exact condition expression used at the source."
+    scopeQuery: "Exact condition expression used at the source — the REWRITTEN one when the producer translated the caller's phrase."
+    matchedFor: "The caller's phrase, echoed so the join matches what was asked rather than what was sent."
     source: "Registry queried."
     dataTimestamp: "Registry dataset timestamp reported by the source."
     retrievedAt: "When this execution fetched the source."
@@ -29,7 +30,7 @@
     - anchorLabel: DiseaseScope
       relationship: HAS_TRIAL_SEARCH
       keyField: registryQuery
-      recordKeyField: scopeQuery
+      recordKeyField: matchedFor
       producer: trialsByDisease
       maxAnchors: 4
       # Must not re-truncate below the producer's sweep: the handler can now return up to

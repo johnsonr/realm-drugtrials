@@ -5,6 +5,12 @@
   kind: remote
   operation: searchByDisease
   keyArg: queries
+  # Identity vs. what was SENT. A keyTransform rewrites the outgoing query, so the run record's own
+  # scopeQuery is the REWRITTEN expression — which no longer equals the anchor's registryQuery, and
+  # the join edge then silently never forms (every trial vanished, and the themes read had nothing to
+  # aggregate). echoKeyAs stamps the ORIGINAL key onto every record, so the join matches what the
+  # caller asked while scopeQuery still reports what actually ran.
+  echoKeyAs: matchedFor
   # Sweep depth, as CONFIG rather than a constant in the handler: raise for an exhaustive
   # landscape, lower for a cheap look. Me merges these into every call and paces them
   # against the `clinicaltrials` bucket below, so depth costs time, not correctness — and
