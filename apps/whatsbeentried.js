@@ -39,6 +39,13 @@ function render(result) {
     <section class="answer-main">
       <p class="answer-kicker">Live answer · distinctions preserved</p>
       <h2>${escapeHtml(result.question || "Clinical trial landscape")}</h2>
+      <div id="themes" class="themes">
+        <div class="themes-head">
+          <p class="answer-kicker">What recurs across these trials</p>
+          <span id="themes-status" class="themes-status"><span class="spinner"></span>Reading across the trials…</span>
+        </div>
+        <div id="themes-body"></div>
+      </div>
       <p class="lede">The current registry returned ${escapeHtml(summary.sourceMatches ?? trials.length)} records; ${escapeHtml(trials.length)} remain after the selected filters. Status describes conduct—not whether an intervention works.</p>
       <div class="summary-cards">${cards.map(([n,label]) => `<div class="summary-card"><b>${escapeHtml(n)}</b><span>${escapeHtml(label)}</span></div>`).join("")}</div>
       <div class="coverage"><strong>Coverage: ${escapeHtml(result.coverage?.state || "UNKNOWN")}</strong><p>${escapeHtml(result.coverage?.detail || "No coverage statement returned.")}</p></div>
@@ -69,10 +76,7 @@ async function readThemes(condition) {
   const section = $("#themes");
   const status = $("#themes-status");
   const body = $("#themes-body");
-  section.hidden = false;
-  body.innerHTML = "";
-  status.hidden = false;
-  status.innerHTML = `<span class="spinner"></span>Reading across the trials…`;
+  if (!section || !status || !body) return; // render() owns the block; nothing to fill before it runs
   try {
     const response = await fetch("/api/v1/lenses/trial-themes/invoke", {
       method: "POST",
@@ -104,7 +108,6 @@ async function investigate(condition) {
   // "no source call yet" stamp that contradicted it mid-call, and a panel of internal
   // vocabulary) over a dimmed body read as a broken page rather than a running query.
   $("#spinner").hidden = false;
-  $("#themes").hidden = true;
   $("#live-dot").classList.add("busy");
   $("#answer-title").textContent = `Searching ClinicalTrials.gov for ${condition}…`;
   $("#timestamp").textContent = "Live query running";
