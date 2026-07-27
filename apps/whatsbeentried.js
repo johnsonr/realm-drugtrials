@@ -72,11 +72,45 @@ function render(result) {
  * factual result for a slow one. The facts stay the registry's: `themes()`/`summarize()` reduce
  * the rows the traversal returned, so an empty traversal yields nothing rather than invented prose.
  */
+/**
+ * Live progress from the engine's own run events, rather than a spinner that says nothing for a
+ * minute. `GET /api/v1/virtual-cypher/events` streams this user's virtual-cypher runs;
+ * `producer.progress` carries current/total, so the percentage shown is the engine's real fetch
+ * position, never an animation pretending to be one. If the stream is unavailable the page simply
+ * keeps the plain status text — progress is an enhancement, never a precondition for the answer.
+ */
+function trackProgress(setStatus) {
+  let source;
+  try {
+    source = new EventSource("/api/v1/virtual-cypher/events", { withCredentials: true });
+  } catch (e) {
+    return () => {};
+  }
+  const on = (name, handler) => source.addEventListener(name, (e) => {
+    try { handler(JSON.parse(e.data)); } catch (_) { /* a malformed frame must not break the page */ }
+  });
+  on("producer.progress", (d) => {
+    if (!d || !d.total) return;
+    const pct = Math.min(100, Math.round((d.current / d.total) * 100));
+    // `batch` is the LLM reduction walking its packs; anything else is a source fetch.
+    const what = d.unit === "batch" ? "Reading" : "Fetching";
+    setStatus(`${what} — ${pct}% (${d.current} of ${d.total})`);
+  });
+  on("producer.fetch", (d) => setStatus(`Calling ${escapeHtml(String(d && d.producer || "the source"))}…`));
+  on("nodes.materialized", (d) => {
+    if (d && d.count) setStatus(`Building the evidence graph — ${d.count} records`);
+  });
+  return () => { try { source.close(); } catch (_) {} };
+}
+
 async function readThemes(condition) {
   const section = $("#themes");
   const status = $("#themes-status");
   const body = $("#themes-body");
   if (!section || !status || !body) return; // render() owns the block; nothing to fill before it runs
+  const stopProgress = trackProgress((text) => {
+    status.innerHTML = `<span class="spinner"></span>${text}`;
+  });
   try {
     const response = await fetch("/api/v1/lenses/trial-themes/invoke", {
       method: "POST",
@@ -99,6 +133,8 @@ async function readThemes(condition) {
   } catch (error) {
     // A failed reading must not cast doubt on the landscape above it, which is already correct.
     status.textContent = "The thematic reading is unavailable — the evidence above is unaffected.";
+  } finally {
+    stopProgress();
   }
 }
 
@@ -111,6 +147,7 @@ async function investigate(condition) {
   $("#live-dot").classList.add("busy");
   $("#answer-title").textContent = `Searching ClinicalTrials.gov for ${condition}…`;
   $("#timestamp").textContent = "Live query running";
+  const stopProgress = trackProgress((text) => { $("#timestamp").textContent = text; });
   try {
     const response = await fetch("/api/v1/lenses/trial-landscape/invoke", {
       method: "POST",
@@ -130,6 +167,7 @@ async function investigate(condition) {
     $("#error").hidden = false;
     $("#answer-title").textContent = "The source traversal did not complete";
   } finally {
+    stopProgress();
     $("#spinner").hidden = true;
     $("#live-dot").classList.remove("busy");
   }
