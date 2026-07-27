@@ -1,0 +1,60 @@
+id: trial-themes
+name: Trial Chronicle — What Recurs
+description: |
+  The recurring research themes across a disease's registered trials, and a plain-language
+  characterisation of the landscape — reduced from the trial titles themselves by the engine's
+  LLM aggregate functions, not recalled by a model.
+params:
+  - name: condition
+    type: STRING
+    label: Disease or condition
+    default: Long COVID
+  - name: topics
+    type: INT
+    label: How many themes
+    default: 6
+spec:
+  kind: cypherscript
+  script: |
+    function sourceQuery(condition) {
+      const c = String(condition || "Long COVID").trim();
+      const key = c.toLowerCase();
+      if (key === "long covid" || key === "pasc" || key === "post-covid condition") {
+        return '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"';
+      }
+      if (key === "herpes vaccine" || key === "herpes simplex vaccine" || key === "hsv vaccine") {
+        return '("herpes simplex" OR HSV-1 OR HSV-2) AND vaccine NOT zoster';
+      }
+      return c;
+    }
+    function escapedLiteral(value) { return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
+
+    const A = (typeof lensArgs !== "undefined") ? lensArgs : {};
+    const condition = String(A.condition || "Long COVID").trim();
+    const topics = Math.min(Math.max(Number(A.topics) || 6, 3), 12);
+    const registryQuery = sourceQuery(condition);
+
+    // themes() and summarize() are ENGINE aggregates: they reduce the group of rows the traversal
+    // actually returned. The facts stay the registry's — the model only characterises the set it is
+    // handed, and an empty traversal yields null rather than invented prose.
+    const cypher = `MATCH (scope:DiseaseScope {registryQuery:'${escapedLiteral(registryQuery)}'})-[:HAS_TRIAL_SEARCH]->(run:TrialSearchRun)
+                    MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
+                    RETURN themes(trial.title, 'what these trials are testing', ${topics}) AS topics,
+                           summarize(trial.title, 'characterise this research landscape in two sentences a patient could read') AS narrative,
+                           count(trial) AS trialCount`;
+
+    const res = await gateway.kg.query({ cypher, params: JSON.stringify({}) });
+    const rows = (res && res.rows) ? res.rows : (res || []);
+    const row = rows[0] || {};
+
+    const result = {
+      kind: "trial-chronicle-themes",
+      schemaVersion: "trial-chronicle-themes/v1",
+      condition,
+      registryQuery,
+      readAcross: row.trialCount || 0,
+      topics: Array.isArray(row.topics) ? row.topics : [],
+      narrative: row.narrative || null,
+      basis: "Reduced from the titles of the trials this query returned — not model recall.",
+    };
+    await gateway.lens.present({ content: JSON.stringify(result) });

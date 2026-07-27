@@ -59,12 +59,52 @@ function render(result) {
   $("#timestamp").textContent = ledger.dataTimestamp ? `Source data ${ledger.dataTimestamp}` : "Live source response";
 }
 
+/**
+ * The recurring-themes read, fetched AFTER the landscape is on screen. It costs an LLM reduction
+ * over every returned title (tens of seconds), so blocking the answer on it would trade a fast,
+ * factual result for a slow one. The facts stay the registry's: `themes()`/`summarize()` reduce
+ * the rows the traversal returned, so an empty traversal yields nothing rather than invented prose.
+ */
+async function readThemes(condition) {
+  const section = $("#themes");
+  const status = $("#themes-status");
+  const body = $("#themes-body");
+  section.hidden = false;
+  body.innerHTML = "";
+  status.hidden = false;
+  status.innerHTML = `<span class="spinner"></span>Reading across the trials…`;
+  try {
+    const response = await fetch("/api/v1/lenses/trial-themes/invoke", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ args: { condition } }),
+    });
+    if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+    const result = resultData(await response.json());
+    const topics = list(result.topics);
+    if (!topics.length && !result.narrative) {
+      status.textContent = "No themes could be read from this set.";
+      return;
+    }
+    status.textContent = result.readAcross ? `Read across ${result.readAcross} trials` : "";
+    body.innerHTML = `
+      ${result.narrative ? `<p class="themes-narrative">${escapeHtml(result.narrative)}</p>` : ""}
+      ${topics.length ? `<ul class="theme-list">${topics.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>` : ""}
+      <p class="themes-basis">${escapeHtml(result.basis || "")}</p>`;
+  } catch (error) {
+    // A failed reading must not cast doubt on the landscape above it, which is already correct.
+    status.textContent = "The thematic reading is unavailable — the evidence above is unaffected.";
+  }
+}
+
 async function investigate(condition) {
   $("#error").hidden = true;
   // ONE status signal, in the status bar, in plain words. Three competing ones (a title, a
   // "no source call yet" stamp that contradicted it mid-call, and a panel of internal
   // vocabulary) over a dimmed body read as a broken page rather than a running query.
   $("#spinner").hidden = false;
+  $("#themes").hidden = true;
   $("#live-dot").classList.add("busy");
   $("#answer-title").textContent = `Searching ClinicalTrials.gov for ${condition}…`;
   $("#timestamp").textContent = "Live query running";
@@ -81,6 +121,7 @@ async function investigate(condition) {
     }
     render(resultData(await response.json()));
     $("#answer").hidden = false;
+    readThemes(condition); // deliberately not awaited — the landscape is already usable
   } catch (error) {
     $("#error").textContent = error instanceof Error ? error.message : "The evidence query could not be completed.";
     $("#error").hidden = false;
