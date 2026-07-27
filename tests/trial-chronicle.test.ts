@@ -14,7 +14,7 @@ describe("live adapter orchestration", () => {
     const searchStudies = vi.fn()
       .mockResolvedValueOnce({ studies: [ctStudy("NCT00000001")], totalCount: 2, nextPageToken: "next" })
       .mockResolvedValueOnce({ studies: [ctStudy("NCT00000002")] });
-    const ctx = mockGateway<GenericGatewayContext>({ clinical_trials: {
+    const ctx = mockGateway<GenericGatewayContext>({ clinicalTrials: {
       getVersion: vi.fn().mockResolvedValue({ apiVersion: "2.0.5", dataTimestamp: "2026-07-24T09:00:05" }),
       searchStudies,
     } });
@@ -28,7 +28,7 @@ describe("live adapter orchestration", () => {
 
   it("deduplicates selected ids before detail fetch", async () => {
     const getStudy = vi.fn().mockResolvedValue(ctStudy("NCT00000001"));
-    const ctx = mockGateway<GenericGatewayContext>({ clinical_trials: { getStudy } });
+    const ctx = mockGateway<GenericGatewayContext>({ clinicalTrials: { getStudy } });
     const detail = await detailsByNctIds(ctx, { nctIds: ["nct00000001", "NCT00000001"] });
     expect(detail).toHaveLength(1);
     expect(getStudy).toHaveBeenCalledTimes(1);
@@ -46,7 +46,7 @@ describe("live adapter orchestration", () => {
   });
 
   it("propagates a registry error instead of returning a false empty", async () => {
-    const ctx = mockGateway<GenericGatewayContext>({ clinical_trials: {
+    const ctx = mockGateway<GenericGatewayContext>({ clinicalTrials: {
       getVersion: vi.fn().mockResolvedValue({ dataTimestamp: "2026-07-24" }),
       searchStudies: vi.fn().mockRejectedValue(new Error("429")),
     } });

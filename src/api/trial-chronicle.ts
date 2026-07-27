@@ -11,7 +11,7 @@ import type {
 } from "../lib/model";
 
 interface TrialGateway {
-  clinical_trials: {
+  clinicalTrials: {
     getVersion(args: Record<string, never>): Promise<CtVersionResponse>;
     searchStudies(args: {
       "query.cond": string;
@@ -74,7 +74,7 @@ export async function searchByDisease(
   ctx: GenericGatewayContext,
   args: { queries: string[] },
 ): Promise<TrialSearchRunRecord[]> {
-  const api = gatewayOf(ctx).clinical_trials;
+  const api = gatewayOf(ctx).clinicalTrials;
   const version = await api.getVersion({});
   const retrievedAt = new Date().toISOString();
   const runs: TrialSearchRunRecord[] = [];
@@ -139,7 +139,7 @@ export async function detailsByNctIds(
   ctx: GenericGatewayContext,
   args: { nctIds: string[] },
 ): Promise<TrialDetailRecord[]> {
-  const api = gatewayOf(ctx).clinical_trials;
+  const api = gatewayOf(ctx).clinicalTrials;
   const ids = [...new Set(args.nctIds.map((id) => id.trim().toUpperCase()).filter(Boolean))];
   const studies = await Promise.all(ids.map((nctId) => api.getStudy({ nctId })));
   return studies.flatMap((s) => {
