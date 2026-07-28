@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mockGateway } from "@embabel/runtime-types";
 import type { GenericGatewayContext } from "@embabel/runtime-types";
-import { detailsByNctIds, publicationsByPmid, searchByDisease } from "../src/api/trial-chronicle";
+import { detailsByNctIds, publicationsByPmid, searchByDisease } from "../src/api/whatsbeentried";
 
 const ctStudy = (id: string) => ({ protocolSection: {
   identificationModule: { nctId: id, briefTitle: `Trial ${id}` },

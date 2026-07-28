@@ -18,6 +18,14 @@ params:
     type: STRING
     label: Statuses (comma-separated)
     default: ""
+  - name: ageGroup
+    type: STRING
+    label: Age cohort (CHILD, ADULT, OLDER_ADULT)
+    default: ""
+  - name: sex
+    type: STRING
+    label: Open to (ALL, FEMALE, MALE)
+    default: ""
 spec:
   kind: cypherscript
   script: |
@@ -70,12 +78,33 @@ spec:
     const phases = list(A.phases);
     const countries = list(A.countries);
     const statuses = list(A.statuses);
+    const ageGroup = list(A.ageGroup)[0] || "";
+    const sex = list(A.sex)[0] || "";
+
+    // Filters belong in the QUERY, not in a pass over the results. The engine renders a declared
+    // predicate into the registry's own query language, so narrowing to recruiting trials fetches the
+    // recruiting ones instead of fetching everything and discarding most of it. Whatever cannot be
+    // pushed is still applied graph-side, so the rows are identical either way — only the cost moves.
+    //
+    // A single status is an equality and pushes; several become an enumerated set, which the registry
+    // has no single qualifier for, so that one stays graph-side by design.
+    const conds = [];
+    if (statuses.length === 1) conds.push(`trial.overallStatus = '${escapedLiteral(statuses[0])}'`);
+    else if (statuses.length > 1) conds.push(`trial.overallStatus IN [${statuses.map(s => `'${escapedLiteral(s)}'`).join(", ")}]`);
+    if (sex) conds.push(`trial.sex = '${escapedLiteral(sex)}'`);
+    // Membership against a list the record holds — the registry answers this against its own cohort,
+    // phase and country vocabularies.
+    if (ageGroup) conds.push(`'${escapedLiteral(ageGroup)}' IN trial.ageGroups`);
+    phases.forEach(p => conds.push(`'${escapedLiteral(p)}' IN trial.phases`));
+    countries.forEach(c => conds.push(`'${escapedLiteral(c)}' IN trial.countries`));
+    const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     // Lens → View composition: this parameterized node-view is expanded before
     // Virtual Cypher planning. The Lens owns presentation; DiseaseTrialRuns owns
     // the reusable graph selection and can also be invoked independently.
     const cypher = `MATCH (run:DiseaseTrialRuns {registryQuery:'${escapedLiteral(registryQuery)}'})
                     MATCH (run)-[:HAS_COVERAGE]->(coverage:TrialCoverage)
                     OPTIONAL MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
+                    ${where}
                     RETURN run.runId AS runId, run.source AS source, run.dataTimestamp AS dataTimestamp,
                            run.scopeQuery AS scopeQuery,
                            run.retrievedAt AS retrievedAt, run.sourceTotal AS sourceTotal,
@@ -91,7 +120,10 @@ spec:
                            trial.startDate AS startDate, trial.primaryCompletionDate AS primaryCompletionDate,
                            trial.completionDate AS completionDate, trial.firstPosted AS firstPosted,
                            trial.lastUpdated AS lastUpdated, trial.hasResults AS hasResults,
-                           trial.whyStopped AS whyStopped, trial.registryUrl AS registryUrl
+                           trial.whyStopped AS whyStopped, trial.registryUrl AS registryUrl,
+                           trial.sex AS sex, trial.minimumAge AS minimumAge, trial.maximumAge AS maximumAge,
+                           trial.ageGroups AS ageGroups, trial.healthyVolunteers AS healthyVolunteers,
+                           trial.facilities AS facilities, trial.investigators AS investigators
                     ORDER BY trial.lastUpdated DESC, trial.nctId ASC`;
     const response = await gateway.kg.query({ cypher, params: JSON.stringify({}) });
     const rows = (response && response.rows) ? response.rows : (response || []);
@@ -107,21 +139,22 @@ spec:
       primaryCompletionDate: r.primaryCompletionDate, completionDate: r.completionDate,
       firstPosted: r.firstPosted, lastUpdated: r.lastUpdated,
       hasResults: !!r.hasResults, whyStopped: r.whyStopped, registryUrl: r.registryUrl,
+      sex: r.sex, minimumAge: r.minimumAge, maximumAge: r.maximumAge,
+      ageGroups: r.ageGroups || [], healthyVolunteers: r.healthyVolunteers,
+      facilities: r.facilities || [], investigators: r.investigators || [],
     }));
-    const intersects = (actual, selected) => !selected.length || (actual || []).some(v => selected.includes(String(v).toUpperCase()));
-    const trials = all.filter(t =>
-      intersects(t.phases, phases) && intersects(t.countries, countries) &&
-      (!statuses.length || statuses.includes(String(t.overallStatus || "").toUpperCase()))
-    );
+    // No second filtering pass: the query already applied every selection, at the source where it
+    // could and graph-side where it could not. Re-filtering here would hide which of the two happened.
+    const trials = all;
     const findings = trials.flatMap(findingFor);
     const counts = trials.reduce((acc, t) => {
       const key = t.overallStatus || "UNKNOWN"; acc[key] = (acc[key] || 0) + 1; return acc;
     }, {});
     const result = {
-      kind: "trial-chronicle",
-      schemaVersion: "trial-chronicle-answer/v1",
+      kind: "whatsbeentried",
+      schemaVersion: "whatsbeentried-answer/v1",
       question: `What clinical research exists for ${condition}, and what problems are visible?`,
-      scope: { condition, registryQuery, phases, countries, statuses },
+      scope: { condition, registryQuery, phases, countries, statuses, ageGroup, sex, appliedInQuery: conds },
       summary: { matchingTrials: trials.length, sourceMatches: meta.sourceTotal || all.length, byStatus: counts, findings: findings.length },
       coverage: {
         state: meta.coverageState || "UNKNOWN", detail: meta.coverageDetail || "No coverage declaration returned.",

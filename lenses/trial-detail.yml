@@ -44,7 +44,7 @@ spec:
       resolutionState: r.publicationTitle ? "RESOLVED_IN_PUBMED" : "REFERENCE_ONLY",
     })), "referenceId");
     await gateway.lens.present({ content: JSON.stringify({
-      kind: "trial-chronicle-detail", schemaVersion: "trial-chronicle-detail/v1", nctId,
+      kind: "whatsbeentried-detail", schemaVersion: "whatsbeentried-detail/v1", nctId,
       detail: { summary: first.briefSummary, description: first.detailedDescription,
         enrollment: first.enrollment, sourceUpdatedAt: first.sourceUpdatedAt, hasResults: !!first.hasResults },
       outcomes, publications,

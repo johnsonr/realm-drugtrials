@@ -1,5 +1,5 @@
 id: trial-themes
-name: Trial Chronicle — What Recurs
+name: WhatsBeenTried.org — What Recurs
 description: |
   The semantic groups a disease's registered trials fall into, each with a real count of how many
   trials it holds and examples from it — grouped by the engine's cluster aggregate over the trial
@@ -59,8 +59,8 @@ spec:
       : null;
 
     const result = {
-      kind: "trial-chronicle-themes",
-      schemaVersion: "trial-chronicle-themes/v2",
+      kind: "whatsbeentried-themes",
+      schemaVersion: "whatsbeentried-themes/v2",
       condition,
       registryQuery,
       readAcross,

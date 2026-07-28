@@ -21,7 +21,8 @@ exports:
   - TrialOutcome
   - TrialReference
   - Publication
-  - trial_chronicle
+  - DrugLabel
+  - whatsbeentried
   - clinical_trials
   - pubmed
   - DiseaseTrialRuns

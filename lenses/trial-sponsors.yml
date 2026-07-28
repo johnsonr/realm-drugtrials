@@ -1,0 +1,108 @@
+id: trial-sponsors
+name: WhatsBeenTried.org — Who Runs These
+description: |
+  Who sponsors a disease's registered trials, counted by the company that ultimately OWNS the sponsor
+  rather than by the name printed on the record — so subsidiaries of one owner are not counted as
+  separate players. Names the registry's ownership data cannot resolve are reported as unresolved, never
+  folded into the totals as if they were.
+params:
+  - name: condition
+    type: STRING
+    label: Disease or condition
+    default: Long COVID
+spec:
+  kind: cypherscript
+  script: |
+    function sourceQuery(condition) {
+      const c = String(condition || "Long COVID").trim();
+      const key = c.toLowerCase();
+      if (key === "long covid" || key === "pasc" || key === "post-covid condition") {
+        return '"Long COVID" OR "Post-Acute Sequelae of SARS-CoV-2" OR PASC OR "Post-COVID Condition"';
+      }
+      return c;
+    }
+    function escapedLiteral(value) { return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
+
+    const A = (typeof lensArgs !== "undefined") ? lensArgs : {};
+    const condition = String(A.condition || "Long COVID").trim();
+    const registryQuery = sourceQuery(condition);
+
+    // OPTIONAL on the ownership hop, deliberately. A sponsor the registry cannot resolve must still
+    // appear in the answer — dropping it would shrink the total silently, which is the failure this
+    // whole view exists to avoid.
+    const cypher = `MATCH (scope:DiseaseScope {registryQuery:'${escapedLiteral(registryQuery)}'})-[:HAS_TRIAL_SEARCH]->(run:TrialSearchRun)
+                    MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
+                    OPTIONAL MATCH (trial)-[:SPONSORED_BY]->(company:CorporateEntity)
+                    RETURN trial.nctId AS nctId,
+                           trial.sponsor AS sponsor,
+                           trial.sponsorClass AS sponsorClass,
+                           company.ultimateOwner AS ultimateOwner,
+                           company.country AS ownerCountry,
+                           company.industry AS ownerIndustry,
+                           company.candidates AS ownerCandidates`;
+
+    const res = await gateway.kg.query({ cypher, params: JSON.stringify({}) });
+    const rows = ((res && res.rows) ? res.rows : (res || [])).filter(r => r && r.nctId);
+
+    // The roll-up key. Where the registry knows no parent the company IS its own owner, so the sponsor
+    // name stands as the owner — that is a fact about the company, not a missing value. Only a sponsor
+    // that resolved to NOTHING at all counts as unresolved.
+    const ownerOf = (r) => r.ultimateOwner || r.sponsor || "Unnamed sponsor";
+    const resolved = rows.filter(r => !!r.ultimateOwner);
+    const unresolved = rows.filter(r => !r.ultimateOwner && r.sponsor);
+
+    const groups = {};
+    rows.forEach((r) => {
+      const owner = ownerOf(r);
+      const g = groups[owner] || (groups[owner] = {
+        owner,
+        trials: 0,
+        subsidiaries: {},
+        country: r.ownerCountry || null,
+        industry: r.ownerIndustry || null,
+        resolvedByRegistry: !!r.ultimateOwner,
+        ambiguousMatch: Number(r.ownerCandidates || 0) > 1,
+      });
+      g.trials += 1;
+      // The names actually printed on the records, kept so a reader can see WHAT was rolled together.
+      // A roll-up that only shows the total asks to be trusted; showing its parts lets it be checked.
+      const label = r.sponsor || "Unnamed sponsor";
+      g.subsidiaries[label] = (g.subsidiaries[label] || 0) + 1;
+    });
+
+    const owners = Object.values(groups)
+      .map(g => ({
+        ...g,
+        subsidiaries: Object.entries(g.subsidiaries)
+          .map(([name, trials]) => ({ name, trials }))
+          .sort((a, b) => b.trials - a.trials || a.name.localeCompare(b.name)),
+      }))
+      .sort((a, b) => b.trials - a.trials || a.owner.localeCompare(b.owner));
+
+    const rolledUp = owners.filter(o => o.subsidiaries.length > 1);
+    const narrative = owners.length
+      ? `${rows.length} trials run by ${owners.length} owners. The largest, ${owners[0].owner}, runs ${owners[0].trials}` +
+        (owners[0].subsidiaries.length > 1 ? ` across ${owners[0].subsidiaries.length} named sponsors.` : ".")
+      : null;
+
+    const result = {
+      kind: "whatsbeentried-sponsors",
+      schemaVersion: "whatsbeentried-sponsors/v1",
+      condition,
+      registryQuery,
+      trialsRead: rows.length,
+      owners,
+      narrative,
+      resolution: {
+        resolvedToOwner: resolved.length,
+        // Stated as a first-class number, not omitted: a roll-up that quietly excludes what it could
+        // not look up reads as complete when it is not.
+        unresolvedSponsors: unresolved.length,
+        rolledUpOwners: rolledUp.length,
+        detail: unresolved.length
+          ? `${unresolved.length} of ${rows.length} trials name a sponsor with no ownership record; each is counted under its own name.`
+          : "Every named sponsor resolved to an ownership record.",
+      },
+      basis: "Ownership comes from a public registry, never from a model. Counts are of the trials this query returned.",
+    };
+    await gateway.lens.present({ content: JSON.stringify(result) });

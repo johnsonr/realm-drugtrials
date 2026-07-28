@@ -29,6 +29,36 @@ legal-compliance determination, or evidence that an intervention works.
 
 No API key is required for the initial sources.
 
+## Requires realm-research
+
+Sponsors, sites and investigators resolve to types that **realm-research owns**: `CorporateEntity`
+(company identity and ownership), `InstitutionProfile` (registry institution identity) and
+`ResearcherProfile` (disambiguated scholarly identity). Those capabilities are general — anything with
+organization or people names wants them — so they live in one place rather than being reimplemented per
+domain, and this realm contributes only the edges from its own anchors into them.
+
+There is no realm dependency mechanism yet, so this is a documented requirement rather than an enforced
+one. Install `realm-research` alongside this realm. Without it, the four edges below simply resolve to
+nothing: trials still read normally, with sponsors and sites as the plain strings the registry gave.
+That is a smaller answer, not a wrong one.
+
+| Edge | Resolves to | Answers |
+|---|---|---|
+| `(:ClinicalTrial)-[:SPONSORED_BY]->(:CorporateEntity)` | realm-research | Who runs these, counted by owner rather than by subsidiary |
+| `(:ClinicalTrial)-[:COLLABORATES_WITH]->(:CorporateEntity)` | realm-research | Which companies contribute without sponsoring |
+| `(:ClinicalTrial)-[:RUNS_AT]->(:InstitutionProfile)` | realm-research | Which institutions run the most trials, across every spelling of their name |
+| `(:ClinicalTrial)-[:LED_BY]->(:ResearcherProfile)` | realm-research | The people running trials, connected to their published work |
+| `(:ClinicalTrial)-[:TESTS_LABELLED_DRUG]->(:DrugLabel)` | this realm (openFDA) | Which trialled drugs already carry approved labelling |
+
+## Filtering happens at the registry
+
+Status, sex, age cohort, phase and country filters are declared as pushdown rules, so narrowing a
+landscape scopes the fetch at ClinicalTrials.gov instead of pulling everything and discarding most of
+it — 723 trials fetched to keep 113 becomes a fetch of 113. Correctness does not depend on this:
+anything that cannot be pushed is still filtered graph-side, so the rows are the same either way and
+only the cost changes. `TrialCoverage.sourceFilters` records what was scoped at the source, because a
+filtered count is not a total.
+
 ## Views and Lenses
 
 The reusable views live in [`views/trials.yml`](views/trials.yml):
