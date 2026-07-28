@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { mockGateway } from "@embabel/runtime-types";
 import type { GenericGatewayContext } from "@embabel/runtime-types";
 import { detailsByNctIds, publicationsByPmid, searchByDisease } from "../src/api/whatsbeentried";
+import { normalizeStudy } from "../src/lib/normalize";
 
 const ctStudy = (id: string) => ({ protocolSection: {
   identificationModule: { nctId: id, briefTitle: `Trial ${id}` },
@@ -123,5 +124,31 @@ describe("filters pushed to the registry", () => {
     await searchByDisease(gateway(searchStudies), { queries: ["Long COVID"], sourceFilters: "{filters}" });
 
     expect(searchStudies).toHaveBeenCalledWith(expect.not.objectContaining({ "query.term": expect.anything() }));
+  });
+});
+
+describe("who may enrol", () => {
+  const withSex = (sex?: string) => normalizeStudy({
+    protocolSection: {
+      identificationModule: { nctId: "NCT1", briefTitle: "t" },
+      ...(sex ? { eligibilityModule: { sex } } : {}),
+    },
+  })!;
+
+  it("treats a trial open to all as open to both", () => {
+    // The defect this pins: filtering on sex = 'MALE' finds only male-ONLY trials — 3 of 723 for one
+    // condition where 113 are actually open to men. "Open to men" showing almost nothing is a wrong
+    // answer wearing the costume of an empty one.
+    expect(withSex("ALL").openTo).toEqual(["MALE", "FEMALE"]);
+  });
+
+  it("keeps a single-sex trial single-sex", () => {
+    expect(withSex("MALE").openTo).toEqual(["MALE"]);
+    expect(withSex("FEMALE").openTo).toEqual(["FEMALE"]);
+  });
+
+  it("claims nothing when the registry states nothing", () => {
+    expect(withSex().openTo).toEqual([]);
+    expect(withSex().sex).toBeUndefined();
   });
 });

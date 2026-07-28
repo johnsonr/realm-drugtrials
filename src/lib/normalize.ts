@@ -50,6 +50,13 @@ export function normalizeStudy(study: CtStudy): ClinicalTrialRecord | undefined 
     // because a trial can declare a cohort whose bounds don't imply it and the registry's own label is
     // what a reader of the record would see.
     sex: eligibility?.sex,
+    // WHO MAY ENROL, which is not the same question as what the registry's `sex` field says. A trial
+    // whose sex is ALL is open to men AND women; filtering on sex = 'MALE' finds only the trials
+    // restricted to men — 3 of 723 for one condition, where 113 are actually open to them. Asking
+    // "open to men" and being shown male-ONLY trials is a wrong answer that looks like an empty one.
+    openTo: eligibility?.sex === "ALL" ? ["MALE", "FEMALE"]
+      : eligibility?.sex ? [eligibility.sex]
+      : [],
     minimumAge: eligibility?.minimumAge,
     maximumAge: eligibility?.maximumAge,
     ageGroups: eligibility?.stdAges ?? [],

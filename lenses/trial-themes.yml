@@ -33,6 +33,16 @@ spec:
     const condition = String(A.condition || "Long COVID").trim();
     const topics = Math.min(Math.max(Number(A.topics) || 6, 3), 12);
     const registryQuery = sourceQuery(condition);
+    // Stated as a brief rather than left to the model's own idea of a summary: what to cover, what NOT to
+    // claim, and a length. Registry titles say what is being TRIED, never whether any of it worked, so a
+    // summary that slips into efficacy would be describing evidence the rows do not contain.
+    const summaryBrief = [
+      `In about 100 words, describe what researchers have been trying for ${condition}.`,
+      "Cover the main approaches being tested and roughly how the effort divides between them.",
+      "These are trial titles from a registry: they record what is being STUDIED, not what worked.",
+      "Never state or imply that any intervention is effective, approved, promising or disappointing.",
+      "Write plain prose for a patient or a journalist. No headings, no bullet points, no preamble.",
+    ].join(" ");
 
     // themes() and summarize() are ENGINE aggregates: they reduce the group of rows the traversal
     // actually returned. The facts stay the registry's — the model only characterises the set it is
@@ -40,9 +50,15 @@ spec:
     // cluster() rather than themes(): it EMBEDS the titles and counts the groups, so each cluster
     // carries a real size and its own examples — and it costs N embeddings plus one naming call
     // instead of a model call per batch, which is what pushed this past the script ceiling before.
+    // summarize() alongside cluster(): the clusters say WHAT groups exist and how big they are, which is
+    // the countable part, but a reader still has to assemble the story from a list of labels. The prose
+    // does that assembling — over the same rows, in the same pass, so it cannot describe a different set
+    // of trials than the one shown beneath it. Both are ENGINE aggregates: the model only characterises
+    // the rows the traversal returned, and an empty traversal yields null rather than invented text.
     const cypher = `MATCH (scope:DiseaseScope {registryQuery:'${escapedLiteral(registryQuery)}'})-[:HAS_TRIAL_SEARCH]->(run:TrialSearchRun)
                     MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
                     RETURN cluster(trial.title, ${topics}) AS clusters,
+                           summarize(trial.title, '${escapedLiteral(summaryBrief)}') AS digest,
                            count(trial) AS trialCount`;
 
     const res = await gateway.kg.query({ cypher, params: JSON.stringify({}) });
@@ -50,6 +66,7 @@ spec:
     const row = rows[0] || {};
 
     const clusters = Array.isArray(row.clusters) ? row.clusters : [];
+    const digest = typeof row.digest === "string" ? row.digest.trim() : null;
     const readAcross = row.trialCount || 0;
     // The overview sentence is ARITHMETIC over the clusters, not a second model call: it can only
     // ever restate counts the engine produced, so it cannot drift from what is shown below it.
@@ -65,6 +82,7 @@ spec:
       registryQuery,
       readAcross,
       clusters,
+      digest,
       narrative,
       basis: "Grouped by meaning from the titles this query returned; every size is a count of those trials, not an estimate.",
     };

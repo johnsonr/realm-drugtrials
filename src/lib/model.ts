@@ -72,6 +72,7 @@ export interface ClinicalTrialRecord {
   minimumAge?: string;
   maximumAge?: string;
   ageGroups: string[];
+  openTo: string[];
   healthyVolunteers?: boolean;
   enrollment?: number;
   startDate?: string;

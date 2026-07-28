@@ -91,7 +91,8 @@ spec:
     const conds = [];
     if (statuses.length === 1) conds.push(`trial.overallStatus = '${escapedLiteral(statuses[0])}'`);
     else if (statuses.length > 1) conds.push(`trial.overallStatus IN [${statuses.map(s => `'${escapedLiteral(s)}'`).join(", ")}]`);
-    if (sex) conds.push(`trial.sex = '${escapedLiteral(sex)}'`);
+    // Eligibility, not the registry's raw sex field — "open to men" must include the trials open to all.
+    if (sex) conds.push(`'${escapedLiteral(sex)}' IN trial.openTo`);
     // Membership against a list the record holds — the registry answers this against its own cohort,
     // phase and country vocabularies.
     if (ageGroup) conds.push(`'${escapedLiteral(ageGroup)}' IN trial.ageGroups`);
@@ -122,7 +123,8 @@ spec:
                            trial.lastUpdated AS lastUpdated, trial.hasResults AS hasResults,
                            trial.whyStopped AS whyStopped, trial.registryUrl AS registryUrl,
                            trial.sex AS sex, trial.minimumAge AS minimumAge, trial.maximumAge AS maximumAge,
-                           trial.ageGroups AS ageGroups, trial.healthyVolunteers AS healthyVolunteers,
+                           trial.ageGroups AS ageGroups, trial.openTo AS openTo,
+                           trial.healthyVolunteers AS healthyVolunteers,
                            trial.facilities AS facilities, trial.investigators AS investigators
                     ORDER BY trial.lastUpdated DESC, trial.nctId ASC`;
     const response = await gateway.kg.query({ cypher, params: JSON.stringify({}) });
@@ -140,7 +142,7 @@ spec:
       firstPosted: r.firstPosted, lastUpdated: r.lastUpdated,
       hasResults: !!r.hasResults, whyStopped: r.whyStopped, registryUrl: r.registryUrl,
       sex: r.sex, minimumAge: r.minimumAge, maximumAge: r.maximumAge,
-      ageGroups: r.ageGroups || [], healthyVolunteers: r.healthyVolunteers,
+      ageGroups: r.ageGroups || [], openTo: r.openTo || [], healthyVolunteers: r.healthyVolunteers,
       facilities: r.facilities || [], investigators: r.investigators || [],
     }));
     // No second filtering pass: the query already applied every selection, at the source where it

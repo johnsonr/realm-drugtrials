@@ -115,3 +115,5 @@
 /* No disclosure chevron on a row that cannot open: one named sponsor has nothing underneath, and an
    affordance that does nothing when clicked is worse than no affordance. */
 .cluster.flat .cluster-label::before{content:none}
+/* The written summary leads the group list: prose first, then the counts that substantiate it. */
+.themes-digest{margin:0 0 12px;font-size:15.5px;line-height:1.62;color:var(--ink)}

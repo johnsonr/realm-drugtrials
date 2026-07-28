@@ -89,6 +89,7 @@
     investigators: { cardinality: LIST, description: "Overall officials named by the registry, usually principal investigators." }
     investigatorAffiliations: { cardinality: LIST, description: "Affiliations the registry records for those officials." }
     sex: "Who may enrol by sex, as the registry states it: ALL, FEMALE or MALE."
+    openTo: { cardinality: LIST, description: "Who may actually enrol — ['MALE','FEMALE'] when the trial is open to all. Ask this, not `sex`, for 'trials open to men': a trial whose sex is ALL admits men, while sex = 'MALE' means men ONLY and finds a tiny fraction of what is open to them." }
     minimumAge: "Lowest age eligible, as text with its unit (the registry's own form, e.g. '18 Years')."
     maximumAge: "Highest age eligible, as text with its unit. Absent when the trial sets no upper bound."
     ageGroups: { cardinality: LIST, description: "The registry's own cohort labels — CHILD, ADULT, OLDER_ADULT. Carried verbatim rather than derived from the age bounds, because the registry's label is what a reader of the record sees." }

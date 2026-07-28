@@ -38,10 +38,16 @@
       op: EQUALS
       qualifier: "AREA[StudyType]{value}"
       valuePattern: "^([A-Z_]+)$"
+    # `sex` is the registry's own field: an EQUALS here means single-sex trials only.
     - property: sex
       op: EQUALS
       qualifier: "AREA[Sex]{value}"
       valuePattern: "^([A-Z]+)$"
+    # `'MALE' IN t.openTo` is the eligibility question, and it includes the trials open to everyone.
+    - property: openTo
+      op: HAS_MEMBER
+      qualifier: "AREA[Sex]({value} OR ALL)"
+      valuePattern: "^(MALE|FEMALE)$"
     # `'OLDER_ADULT' IN t.ageGroups` — membership in a list the record holds, which the registry
     # can answer directly against its own cohort vocabulary.
     - property: ageGroups

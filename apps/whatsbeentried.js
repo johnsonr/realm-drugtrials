@@ -361,11 +361,15 @@ async function readThemes(condition) {
     if (!response.ok) throw new Error(`Request failed (${response.status}).`);
     const result = resultData(await response.json());
     const clusters = list(result.clusters);
-    if (!clusters.length && !result.narrative) {
+    // A written summary with no clean grouping is still worth showing.
+    if (!clusters.length && !result.narrative && !result.digest) {
       status.textContent = "These trials could not be grouped.";
       return;
     }
-    status.textContent = result.readAcross ? `Grouped across ${result.readAcross} trials` : "";
+    status.textContent = result.readAcross ? `Read across ${result.readAcross} trials` : "";
+    // The prose leads and the groups substantiate it: a reader gets the gist in a sentence or two and
+    // can then check it against counts drawn from the same rows.
+    const digest = result.digest ? `<p class="themes-digest">${escapeHtml(result.digest)}</p>` : "";
     const max = clusters.reduce((m, c) => Math.max(m, Number(c.size) || 0), 0) || 1;
     // <details> so a group opens without JS and stays keyboard- and screen-reader-navigable.
     const rows = clusters.map((c) => `
@@ -381,6 +385,7 @@ async function readThemes(condition) {
       </details>`).join("");
 
     body.innerHTML = `
+      ${digest}
       ${result.narrative ? `<p class="themes-narrative">${escapeHtml(result.narrative)}</p>` : ""}
       ${rows}
       <p class="themes-basis">${escapeHtml(result.basis || "")}</p>`;
