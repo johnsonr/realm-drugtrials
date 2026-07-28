@@ -192,7 +192,7 @@ function render(result) {
       <h2>${escapeHtml(result.question || "Clinical trial landscape")}</h2>
       <div id="themes" class="themes">
         <div class="themes-head">
-          <p class="answer-kicker">What recurs across these trials</p>
+          <p class="answer-kicker">How these trials group</p>
           <span id="themes-status" class="themes-status"><span class="spinner"></span>Reading across the trials…</span>
         </div>
         <div id="themes-body"></div>
@@ -275,15 +275,29 @@ async function readThemes(condition) {
     });
     if (!response.ok) throw new Error(`Request failed (${response.status}).`);
     const result = resultData(await response.json());
-    const topics = list(result.topics);
-    if (!topics.length && !result.narrative) {
-      status.textContent = "No themes could be read from this set.";
+    const clusters = list(result.clusters);
+    if (!clusters.length && !result.narrative) {
+      status.textContent = "These trials could not be grouped.";
       return;
     }
-    status.textContent = result.readAcross ? `Read across ${result.readAcross} trials` : "";
+    status.textContent = result.readAcross ? `Grouped across ${result.readAcross} trials` : "";
+    const max = clusters.reduce((m, c) => Math.max(m, Number(c.size) || 0), 0) || 1;
+    // <details> so a group opens without JS and stays keyboard- and screen-reader-navigable.
+    const rows = clusters.map((c) => `
+      <details class="cluster">
+        <summary>
+          <span class="cluster-label">${escapeHtml(c.label)}</span>
+          <span class="cluster-track"><span class="cluster-bar" style="width:${Math.max(3, ((Number(c.size) || 0) / max) * 100)}%"></span></span>
+          <span class="cluster-count">${escapeHtml(c.size)}<small>${escapeHtml(c.share)}%</small></span>
+        </summary>
+        <ul class="cluster-examples">
+          ${list(c.examples).map(x => `<li>${escapeHtml(x)}</li>`).join("") || "<li>No example titles were returned.</li>"}
+        </ul>
+      </details>`).join("");
+
     body.innerHTML = `
       ${result.narrative ? `<p class="themes-narrative">${escapeHtml(result.narrative)}</p>` : ""}
-      ${topics.length ? `<ul class="theme-list">${topics.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>` : ""}
+      ${rows}
       <p class="themes-basis">${escapeHtml(result.basis || "")}</p>`;
   } catch (error) {
     // A failed reading must not cast doubt on the landscape above it, which is already correct.

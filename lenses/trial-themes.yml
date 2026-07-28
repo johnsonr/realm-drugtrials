@@ -1,9 +1,9 @@
 id: trial-themes
 name: Trial Chronicle — What Recurs
 description: |
-  The recurring research themes across a disease's registered trials, and a plain-language
-  characterisation of the landscape — reduced from the trial titles themselves by the engine's
-  LLM aggregate functions, not recalled by a model.
+  The semantic groups a disease's registered trials fall into, each with a real count of how many
+  trials it holds and examples from it — grouped by the engine's cluster aggregate over the trial
+  titles themselves, never recalled by a model.
 params:
   - name: condition
     type: STRING
@@ -11,7 +11,7 @@ params:
     default: Long COVID
   - name: topics
     type: INT
-    label: How many themes
+    label: How many groups
     default: 6
 spec:
   kind: cypherscript
@@ -37,24 +37,35 @@ spec:
     // themes() and summarize() are ENGINE aggregates: they reduce the group of rows the traversal
     // actually returned. The facts stay the registry's — the model only characterises the set it is
     // handed, and an empty traversal yields null rather than invented prose.
+    // cluster() rather than themes(): it EMBEDS the titles and counts the groups, so each cluster
+    // carries a real size and its own examples — and it costs N embeddings plus one naming call
+    // instead of a model call per batch, which is what pushed this past the script ceiling before.
     const cypher = `MATCH (scope:DiseaseScope {registryQuery:'${escapedLiteral(registryQuery)}'})-[:HAS_TRIAL_SEARCH]->(run:TrialSearchRun)
                     MATCH (run)-[:RETURNED]->(trial:ClinicalTrial)
-                    RETURN themes(trial.title, 'what these trials are testing', ${topics}) AS topics,
-                           summarize(trial.title, 'characterise this research landscape in two sentences a patient could read') AS narrative,
+                    RETURN cluster(trial.title, ${topics}) AS clusters,
                            count(trial) AS trialCount`;
 
     const res = await gateway.kg.query({ cypher, params: JSON.stringify({}) });
     const rows = (res && res.rows) ? res.rows : (res || []);
     const row = rows[0] || {};
 
+    const clusters = Array.isArray(row.clusters) ? row.clusters : [];
+    const readAcross = row.trialCount || 0;
+    // The overview sentence is ARITHMETIC over the clusters, not a second model call: it can only
+    // ever restate counts the engine produced, so it cannot drift from what is shown below it.
+    const largest = clusters[0];
+    const narrative = clusters.length
+      ? `These ${readAcross} trials fall into ${clusters.length} groups by what they study. The largest, ${largest.label}, covers ${largest.size} of them (${largest.share}%).`
+      : null;
+
     const result = {
       kind: "trial-chronicle-themes",
-      schemaVersion: "trial-chronicle-themes/v1",
+      schemaVersion: "trial-chronicle-themes/v2",
       condition,
       registryQuery,
-      readAcross: row.trialCount || 0,
-      topics: Array.isArray(row.topics) ? row.topics : [],
-      narrative: row.narrative || null,
-      basis: "Reduced from the titles of the trials this query returned — not model recall.",
+      readAcross,
+      clusters,
+      narrative,
+      basis: "Grouped by meaning from the titles this query returned; every size is a count of those trials, not an estimate.",
     };
     await gateway.lens.present({ content: JSON.stringify(result) });
