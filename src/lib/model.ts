@@ -26,7 +26,18 @@ export interface CtStudy {
     armsInterventionsModule?: { interventions?: Intervention[] };
     outcomesModule?: { primaryOutcomes?: Outcome[]; secondaryOutcomes?: Outcome[]; otherOutcomes?: Outcome[] };
     referencesModule?: { references?: Reference[] };
-    contactsLocationsModule?: { locations?: Array<{ facility?: string; city?: string; state?: string; zip?: string; country?: string; geoPoint?: { lat?: number; lon?: number } }> };
+    eligibilityModule?: {
+      sex?: string;
+      minimumAge?: string;
+      maximumAge?: string;
+      stdAges?: string[];
+      healthyVolunteers?: boolean;
+      eligibilityCriteria?: string;
+    };
+    contactsLocationsModule?: {
+      locations?: Array<{ facility?: string; city?: string; state?: string; zip?: string; country?: string; geoPoint?: { lat?: number; lon?: number } }>;
+      overallOfficials?: Array<{ name?: string; affiliation?: string; role?: string }>;
+    };
   };
   resultsSection?: unknown;
   derivedSection?: {
@@ -54,6 +65,14 @@ export interface ClinicalTrialRecord {
   interventions: string[];
   interventionTypes: string[];
   countries: string[];
+  facilities: string[];
+  investigators: string[];
+  investigatorAffiliations: string[];
+  sex?: string;
+  minimumAge?: string;
+  maximumAge?: string;
+  ageGroups: string[];
+  healthyVolunteers?: boolean;
   enrollment?: number;
   startDate?: string;
   primaryCompletionDate?: string;

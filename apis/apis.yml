@@ -19,3 +19,10 @@
     User-Agent: "WhatsBeenTried.org/0.1 (https://github.com/johnsonr/realm-drugtrials; assistant@embabel.com)"
   operation-ids:
     - summarizePubmed
+
+# openFDA — public drug labelling, no key. An unauthenticated caller gets the lower rate tier,
+# so the producer paces itself rather than relying on a credential nobody has to configure.
+- url: openfda.yaml
+  name: openfda
+  type: openapi
+  auth: none

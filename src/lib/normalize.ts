@@ -19,7 +19,13 @@ export function normalizeStudy(study: CtStudy): ClinicalTrialRecord | undefined 
   const design = p?.designModule;
   const sponsor = p?.sponsorCollaboratorsModule;
   const interventions = p?.armsInterventionsModule?.interventions ?? [];
-  const countries = unique((p?.contactsLocationsModule?.locations ?? []).map((l) => l.country));
+  const locations = p?.contactsLocationsModule?.locations ?? [];
+  const countries = unique(locations.map((l) => l.country));
+  // A facility is where a trial actually runs — a hospital, a university, a clinic. The registry
+  // repeats it once per site, so the same institution appears many times in one trial.
+  const facilities = unique(locations.map((l) => l.facility));
+  const officials = p?.contactsLocationsModule?.overallOfficials ?? [];
+  const eligibility = p?.eligibilityModule;
   return {
     registryRecordId: id,
     nctId: id,
@@ -36,6 +42,18 @@ export function normalizeStudy(study: CtStudy): ClinicalTrialRecord | undefined 
     interventions: unique(interventions.map((i) => i.name)),
     interventionTypes: unique(interventions.map((i) => i.type)),
     countries,
+    facilities,
+    investigators: unique(officials.map((o) => o.name)),
+    investigatorAffiliations: unique(officials.map((o) => o.affiliation)),
+    // Eligibility as the registry states it. `stdAges` is the registry's OWN cohort vocabulary
+    // (CHILD / ADULT / OLDER_ADULT); it is carried verbatim rather than derived from the age bounds,
+    // because a trial can declare a cohort whose bounds don't imply it and the registry's own label is
+    // what a reader of the record would see.
+    sex: eligibility?.sex,
+    minimumAge: eligibility?.minimumAge,
+    maximumAge: eligibility?.maximumAge,
+    ageGroups: eligibility?.stdAges ?? [],
+    healthyVolunteers: eligibility?.healthyVolunteers,
     enrollment: design?.enrollmentInfo?.count,
     startDate: status?.startDateStruct?.date,
     primaryCompletionDate: status?.primaryCompletionDateStruct?.date,

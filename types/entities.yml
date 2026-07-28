@@ -1,0 +1,72 @@
+# Edges from a trial into the GENERAL types other realms own.
+#
+# Nothing here defines those types — realm-research does, along with the producers that resolve them.
+# This file contributes only the hops from this realm's own anchor, which is why installing both realms
+# yields one shared company (or institution, or researcher) that every domain can reach, rather than a
+# private copy per domain. The engine keeps every declared edge into a type, including edges declared in
+# a different realm, so these accumulate with the general ones instead of replacing them.
+#
+# REQUIRES realm-research to be installed. Without it these joins resolve to nothing and the trials
+# still read normally — sponsors and sites remain the plain strings the registry gave, which is a
+# smaller answer, not a wrong one.
+
+- name: CorporateEntity
+  description: |
+    A trial's sponsor and collaborators, resolved to the company profile realm-research owns.
+
+    Two edges, deliberately distinct. A sponsor runs the trial; a collaborator contributes to it. They
+    are different relationships to the science and to the money, and collapsing them would make an
+    industry partner on one academic trial indistinguishable from a company running fifty of its own.
+  virtualJoins:
+    - anchorLabel: ClinicalTrial
+      relationship: SPONSORED_BY
+      via: sponsor
+      keyField: sponsor
+      recordKeyField: name
+      producer: companiesByName
+      maxAnchors: 400
+      maxFanoutTotal: 400
+
+    # `collaborators` is LIST-valued: one key per collaborator, not one key for the list. Several
+    # trials naming the same company converge on a single node, which is what makes counting possible.
+    - anchorLabel: ClinicalTrial
+      relationship: COLLABORATES_WITH
+      via: collaborator
+      keyField: collaborators
+      recordKeyField: name
+      producer: companiesByName
+      maxAnchors: 400
+      maxFanoutTotal: 1200
+
+- name: InstitutionProfile
+  description: |
+    The sites a trial runs at, canonicalized to registry identities.
+
+    `facilities` is LIST-valued, so each site becomes its own key. Many trials at one hospital converge
+    on one node — which is the whole point, since counting the raw strings would count a hospital once
+    per spelling it registered under.
+  virtualJoins:
+    - anchorLabel: ClinicalTrial
+      relationship: RUNS_AT
+      keyField: facilities
+      recordKeyField: name
+      producer: institutionsByName
+      # A landscape has tens of distinct sites, not thousands — but a site resolves one call at a time,
+      # so the ceiling is deliberately low.
+      maxAnchors: 100
+      maxFanoutTotal: 200
+
+- name: ResearcherProfile
+  description: |
+    The investigators a trial names, resolved to scholarly identities — the join that connects a trial to
+    the literature through a PERSON rather than through the trial's own registered citations.
+  virtualJoins:
+    - anchorLabel: ClinicalTrial
+      relationship: LED_BY
+      keyField: investigators
+      recordKeyField: name
+      producer: researchersByName
+      # One call per person. Kept small on purpose: this is the most expensive join here and the least
+      # certain, since it matches on a name.
+      maxAnchors: 40
+      maxFanoutTotal: 60

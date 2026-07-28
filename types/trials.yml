@@ -85,6 +85,14 @@
     interventions: { cardinality: LIST, description: "Registered intervention names." }
     interventionTypes: { cardinality: LIST, description: "Registered intervention types." }
     countries: { cardinality: LIST, description: "Countries represented by registered locations." }
+    facilities: { cardinality: LIST, description: "Named sites where the trial runs — hospitals, universities, clinics." }
+    investigators: { cardinality: LIST, description: "Overall officials named by the registry, usually principal investigators." }
+    investigatorAffiliations: { cardinality: LIST, description: "Affiliations the registry records for those officials." }
+    sex: "Who may enrol by sex, as the registry states it: ALL, FEMALE or MALE."
+    minimumAge: "Lowest age eligible, as text with its unit (the registry's own form, e.g. '18 Years')."
+    maximumAge: "Highest age eligible, as text with its unit. Absent when the trial sets no upper bound."
+    ageGroups: { cardinality: LIST, description: "The registry's own cohort labels — CHILD, ADULT, OLDER_ADULT. Carried verbatim rather than derived from the age bounds, because the registry's label is what a reader of the record sees." }
+    healthyVolunteers: { type: boolean, description: "Whether the trial accepts healthy volunteers." }
     enrollment: { type: int, description: "Actual or estimated enrollment count."
     }
     startDate: "Registered start date."
@@ -175,3 +183,37 @@
       maxAnchors: 200
       maxFanoutTotal: 200
 
+
+- name: DrugLabel
+  userAnchor: false
+  description: |
+    The current FDA-approved labelling for a drug a trial is testing.
+
+    The point of joining it: a trial registry records what is being tested, never what has been approved.
+    Reading the two together separates a trial of an established product from a trial of something that
+    has never carried a label — a distinction the registry alone cannot make.
+
+    An intervention with no label yields no node. That absence means "no approved labelling", which for
+    an investigational compound is the expected state and not a gap in the data.
+  properties:
+    intervention:
+      identity: true
+      description: "The intervention name this label was resolved for — the trial's own text, echoed back so it links to the trial that named it."
+    brandName: "Brand name on the label."
+    genericName: "Generic name on the label, which is often a combination product rather than the single agent the trial names."
+    manufacturer: "Labeller as the regulator records them."
+    route: "Route of administration."
+    applicationNumber: "Regulatory application number."
+    effectiveTime: "When this version of the labelling took effect."
+    boxedWarning: "The label's boxed warning. Present ONLY when the label carries one — its absence is the strongest safety signal a label has, so read the missing property as 'none', not as 'unknown'."
+  virtualJoins:
+    # `interventions` is LIST-valued: one key per drug the trial tests, not one key for the list.
+    - anchorLabel: ClinicalTrial
+      relationship: TESTS_LABELLED_DRUG
+      keyField: interventions
+      recordKeyField: intervention
+      producer: drugLabelsByName
+      # One call per drug, so the ceiling is deliberately low — a landscape names far more distinct
+      # interventions than are worth resolving in a single question.
+      maxAnchors: 60
+      maxFanoutTotal: 120

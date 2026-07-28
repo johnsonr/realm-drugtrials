@@ -18,6 +18,44 @@
   args:
     pageSize: 1000
     maxPages: 10
+    # The slot declared pushdown rules render into. Empty when the query had nothing pushable.
+    sourceFilters: "{filters}"
+  # Filters applied AT the registry rather than after fetching. Without these, narrowing a landscape to
+  # recruiting trials still pulls every trial for the disease and discards most of them: 723 fetched to
+  # keep 113. With them the registry returns the 113.
+  #
+  # Correctness never depends on this. Anything not pushed is still filtered graph-side, so the rows are
+  # the same either way and only the cost changes — which is why a value that doesn't match its
+  # `valuePattern` is left to the graph instead of being pasted into an Essie expression it would break.
+  # The patterns admit exactly the registry's own vocabularies (uppercase enum tokens, and plain names
+  # for countries), so nothing user-shaped can reach the source as syntax.
+  pushdown:
+    - property: overallStatus
+      op: EQUALS
+      qualifier: "AREA[OverallStatus]{value}"
+      valuePattern: "^([A-Z_]+)$"
+    - property: studyType
+      op: EQUALS
+      qualifier: "AREA[StudyType]{value}"
+      valuePattern: "^([A-Z_]+)$"
+    - property: sex
+      op: EQUALS
+      qualifier: "AREA[Sex]{value}"
+      valuePattern: "^([A-Z]+)$"
+    # `'OLDER_ADULT' IN t.ageGroups` — membership in a list the record holds, which the registry
+    # can answer directly against its own cohort vocabulary.
+    - property: ageGroups
+      op: HAS_MEMBER
+      qualifier: "AREA[StdAge]{value}"
+      valuePattern: "^([A-Z_]+)$"
+    - property: phases
+      op: HAS_MEMBER
+      qualifier: "AREA[Phase]{value}"
+      valuePattern: "^([A-Z0-9_]+)$"
+    - property: countries
+      op: HAS_MEMBER
+      qualifier: "AREA[LocationCountry]\"{value}\""
+      valuePattern: "^([A-Za-z .'-]+)$"
   # The registry speaks Essie, where AND/OR/NOT are operators ONLY in uppercase — so a natural
   # phrase like "parkinsons and anxiety" returns 2 trials where "Parkinson AND anxiety" returns 64.
   # A plausible number is worse than an error, so the phrase is rewritten into the source's own
@@ -79,3 +117,39 @@
     rate: "3/sec"
     yield: high
 
+
+# What a trial's interventions ALREADY are in regulatory terms: an approved product with a label, or a
+# compound that has never had one. The trial registry does not know this — it records what is being
+# tested, not what has been approved — so it is a genuine second source rather than a nicer view of the
+# first.
+#
+# One call per drug name, with the name stamped onto the record. openFDA can't be asked "which of these
+# forty drugs have labels" in one query in a way that says WHICH answered, and a batched OR would return
+# a pile of labels with no reliable link back to the intervention that found them — the kind of
+# plausible mapping that quietly attributes a boxed warning to the wrong drug.
+- name: drugLabelsByName
+  kind: remote
+  operation: searchDrugLabels
+  keyArg: search
+  keyTemplate: 'openfda.generic_name:"{key}" OR openfda.brand_name:"{key}"'
+  echoKeyAs: intervention
+  args:
+    limit: 1        # the current label; the full revision history is not the question here
+  records: "$.results[*]"
+  project:
+    brandName: openfda.brand_name.0
+    genericName: openfda.generic_name.0
+    manufacturer: openfda.manufacturer_name.0
+    route: openfda.route.0
+    applicationNumber: openfda.application_number.0
+    effectiveTime: effective_time
+    # Present ONLY when the label carries one. Absence is meaningful: it means no boxed warning, which
+    # is the strongest safety signal a label has.
+    boxedWarning: boxed_warning.0
+  cache:
+    kind: ttl
+    seconds: 604800   # a week — approved labelling changes on a regulatory timescale
+  cost:
+    bucket: openfda
+    rate: "4/sec"
+    yield: medium

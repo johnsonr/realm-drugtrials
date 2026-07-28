@@ -49,3 +49,64 @@ describe("ClinicalTrials.gov normalization", () => {
     expect(records).toEqual([expect.objectContaining({ pmid: "12345", title: "Result paper", doi: "10.1/example" })]);
   });
 });
+
+describe("eligibility and the entities a trial names", () => {
+  // Names are synthetic: the registry is public, but a test fixture is not the place for real people.
+  const withEntities: CtStudy = {
+    protocolSection: {
+      identificationModule: { nctId: "NCT99999999", briefTitle: "Eligibility trial" },
+      eligibilityModule: {
+        sex: "FEMALE",
+        minimumAge: "18 Years",
+        maximumAge: "70 Years",
+        stdAges: ["ADULT", "OLDER_ADULT"],
+        healthyVolunteers: true,
+      },
+      contactsLocationsModule: {
+        // The registry repeats a facility once per site record.
+        locations: [
+          { facility: "Example General Hospital", country: "Australia" },
+          { facility: "Example General Hospital", country: "Australia" },
+          { facility: "Second Example Clinic", country: "New Zealand" },
+        ],
+        overallOfficials: [
+          { name: "A. Researcher", affiliation: "Example University" },
+          { name: "B. Investigator", affiliation: "Example University" },
+        ],
+      },
+    },
+  };
+
+  it("carries the registry's own cohort labels verbatim", () => {
+    const t = normalizeStudy(withEntities)!;
+    // Not derived from the age bounds: a trial can declare a cohort its bounds don't imply, and the
+    // registry's label is what a reader of the record sees.
+    expect(t.ageGroups).toEqual(["ADULT", "OLDER_ADULT"]);
+    expect(t.sex).toBe("FEMALE");
+    expect(t.minimumAge).toBe("18 Years");
+    expect(t.maximumAge).toBe("70 Years");
+    expect(t.healthyVolunteers).toBe(true);
+  });
+
+  it("deduplicates facilities, so one institution is one node however many sites it registered", () => {
+    const t = normalizeStudy(withEntities)!;
+    expect(t.facilities).toEqual(["Example General Hospital", "Second Example Clinic"]);
+  });
+
+  it("names investigators and their affiliations", () => {
+    const t = normalizeStudy(withEntities)!;
+    expect(t.investigators).toEqual(["A. Researcher", "B. Investigator"]);
+    // Two officials at one institution is one affiliation — the same convergence as facilities.
+    expect(t.investigatorAffiliations).toEqual(["Example University"]);
+  });
+
+  it("leaves eligibility absent rather than guessing when the registry omits it", () => {
+    const t = normalizeStudy({ protocolSection: { identificationModule: { nctId: "NCT1", briefTitle: "t" } } })!;
+    expect(t.sex).toBeUndefined();
+    expect(t.healthyVolunteers).toBeUndefined();
+    // Absent lists are empty, never a list containing nothing meaningful.
+    expect(t.ageGroups).toEqual([]);
+    expect(t.facilities).toEqual([]);
+    expect(t.investigators).toEqual([]);
+  });
+});

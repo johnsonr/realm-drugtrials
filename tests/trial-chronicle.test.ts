@@ -83,3 +83,45 @@ describe("live adapter orchestration", () => {
     await expect(searchByDisease(ctx, { queries: ["Long COVID"] })).rejects.toThrow("429");
   });
 });
+
+describe("filters pushed to the registry", () => {
+  const gateway = (searchStudies: ReturnType<typeof vi.fn>) =>
+    mockGateway<GenericGatewayContext>({ clinicalTrials: {
+      getVersion: vi.fn().mockResolvedValue({ apiVersion: "2.0.5", dataTimestamp: "2026-07-24T09:00:05" }),
+      searchStudies,
+    } });
+
+  it("sends a rendered filter as query.term, and records it as coverage", async () => {
+    // A filtered count is not a total. If coverage doesn't say what was scoped at the source, "113
+    // trials" reads as the whole landscape rather than the recruiting slice of it.
+    const searchStudies = vi.fn().mockResolvedValue({ studies: [ctStudy("NCT1")], totalCount: 1 });
+    const [run] = await searchByDisease(gateway(searchStudies), {
+      queries: ["Long COVID"],
+      sourceFilters: "AREA[OverallStatus]RECRUITING",
+    });
+
+    expect(searchStudies).toHaveBeenCalledWith(expect.objectContaining({
+      "query.term": "AREA[OverallStatus]RECRUITING",
+    }));
+    expect(run.coverage[0].sourceFilters).toBe("AREA[OverallStatus]RECRUITING");
+  });
+
+  it("omits query.term entirely when nothing was pushable", async () => {
+    // Not the same as sending an empty term: an empty Essie expression is a syntax error at the
+    // registry, which would turn "no filter" into "no results".
+    const searchStudies = vi.fn().mockResolvedValue({ studies: [ctStudy("NCT1")] });
+    const [run] = await searchByDisease(gateway(searchStudies), { queries: ["Long COVID"] });
+
+    expect(searchStudies).toHaveBeenCalledWith(expect.not.objectContaining({ "query.term": expect.anything() }));
+    expect(run.coverage[0].sourceFilters).toBeUndefined();
+  });
+
+  it("treats an unsubstituted placeholder as no filter rather than a search term", async () => {
+    // If the slot is never filled the literal "{filters}" would otherwise be sent to the registry as
+    // text to match, quietly returning nothing at all.
+    const searchStudies = vi.fn().mockResolvedValue({ studies: [ctStudy("NCT1")] });
+    await searchByDisease(gateway(searchStudies), { queries: ["Long COVID"], sourceFilters: "{filters}" });
+
+    expect(searchStudies).toHaveBeenCalledWith(expect.not.objectContaining({ "query.term": expect.anything() }));
+  });
+});

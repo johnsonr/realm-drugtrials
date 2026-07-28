@@ -1,0 +1,45 @@
+openapi: 3.0.3
+info:
+  title: openFDA — drug label subset
+  version: "1.0"
+  description: |
+    Public, free, no key required (an unauthenticated caller gets a lower rate limit, which is why the
+    producer paces itself). Returns the current FDA-approved labelling for a drug.
+
+    Used here to ask what a trial's interventions already are in regulatory terms: an approved product
+    with a label, or a compound that has never had one. That distinction is not in the trial registry.
+servers:
+  - url: https://api.fda.gov
+paths:
+  /drug/label.json:
+    get:
+      operationId: searchDrugLabels
+      summary: Search approved drug labelling.
+      parameters:
+        - name: search
+          in: query
+          required: true
+          description: >
+            Lucene-style query over label fields, e.g.
+            `openfda.generic_name:"metformin" OR openfda.brand_name:"metformin"`.
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Matching labels under `results[]`.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: >
+            openFDA returns 404 when nothing matches — a normal outcome for an investigational compound,
+            not a failure. It means the drug has no approved label.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
