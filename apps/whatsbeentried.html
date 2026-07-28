@@ -25,6 +25,33 @@
         <input id="condition" name="condition" value="Long COVID" autocomplete="off">
         <button type="submit">See what’s been tried <span>→</span></button>
       </form>
+      <fieldset class="narrow">
+        <legend>Narrow the search</legend>
+        <label>Status
+          <select id="f-status">
+            <option value="">Any</option>
+            <option value="RECRUITING">Recruiting</option>
+            <option value="ACTIVE_NOT_RECRUITING">Active, not recruiting</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="TERMINATED">Terminated</option>
+          </select>
+        </label>
+        <label>Age cohort
+          <select id="f-age">
+            <option value="">Any</option>
+            <option value="CHILD">Children</option>
+            <option value="ADULT">Adults</option>
+            <option value="OLDER_ADULT">Older adults</option>
+          </select>
+        </label>
+        <label>Open to
+          <select id="f-sex">
+            <option value="">Anyone</option>
+            <option value="FEMALE">Women</option>
+            <option value="MALE">Men</option>
+          </select>
+        </label>
+      </fieldset>
       <div class="examples">
         <button data-condition="Long COVID">Long COVID: what completed—and where are the results?</button>
         <button data-condition="Alzheimer disease">Alzheimer’s: what approaches are still active?</button>

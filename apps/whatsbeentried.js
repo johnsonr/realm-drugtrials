@@ -197,6 +197,14 @@ function render(result) {
         </div>
         <div id="themes-body"></div>
       </div>
+      ${renderNarrowing(result.scope)}
+      <div id="sponsors" class="sponsors">
+        <div class="themes-head">
+          <p class="answer-kicker">Who runs these</p>
+          <span id="sponsors-status" class="themes-status"><span class="spinner"></span>Resolving sponsors to their owners…</span>
+        </div>
+        <div id="sponsors-body"></div>
+      </div>
       <section id="geography" class="viz" hidden></section>
       <section id="timeline" class="viz" hidden></section>
       <p class="lede">The current registry returned ${escapeHtml(summary.sourceMatches ?? trials.length)} records; ${escapeHtml(trials.length)} remain after the selected filters. Status describes conduct—not whether an intervention works.</p>
@@ -256,6 +264,83 @@ function trackProgress(setStatus) {
     if (d && d.count) setStatus(`Building the evidence graph — ${d.count} records`);
   });
   return () => { try { source.close(); } catch (_) {} };
+}
+
+/**
+ * Where each filter was applied — at the registry, or over the fetched records.
+ *
+ * The distinction is invisible in the numbers and matters for reading them: a filter the source
+ * applied means the registry was asked a narrower question, while one applied here means everything
+ * was fetched and most of it discarded. Both give the same rows, so nothing else would ever say which
+ * happened.
+ */
+function renderNarrowing(scope) {
+  const applied = list((scope || {}).appliedInQuery);
+  if (!applied.length) return "";
+  const readable = {
+    overallStatus: "status",
+    sex: "open to",
+    ageGroups: "age cohort",
+    phases: "phase",
+    countries: "country",
+  };
+  const chips = applied.map((c) => {
+    const text = String(c);
+    // An enumerated set has no single qualifier at the registry, so it is the one that stays local.
+    const local = text.includes(" IN [");
+    const field = Object.keys(readable).find(k => text.includes(k));
+    const value = (text.match(/'([^']+)'/) || [])[1] || text;
+    return `<span class="narrow-chip ${local ? "local" : "source"}">
+      <b>${escapeHtml(readable[field] || "filter")}</b>${escapeHtml(value)}
+      <small>${local ? "applied here" : "asked of the registry"}</small>
+    </span>`;
+  }).join("");
+  return `<div class="narrowing"><p class="answer-kicker">Narrowed by</p><div class="narrow-chips">${chips}</div></div>`;
+}
+
+async function readSponsors(condition) {
+  const status = $("#sponsors-status");
+  const body = $("#sponsors-body");
+  if (!status || !body) return;
+  try {
+    const response = await fetch("/api/v1/lenses/trial-sponsors/invoke", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ args: { condition } }),
+    });
+    if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+    const result = resultData(await response.json());
+    const owners = list(result.owners);
+    if (!owners.length) {
+      status.textContent = "No sponsors were named on these trials.";
+      return;
+    }
+    const resolution = result.resolution || {};
+    status.textContent = `${owners.length} owners across ${result.trialsRead || 0} trials`;
+    const max = owners.reduce((m, o) => Math.max(m, Number(o.trials) || 0), 0) || 1;
+    const rows = owners.slice(0, 25).map((o) => {
+      const subs = list(o.subsidiaries);
+      // Only a genuine roll-up opens: a single-name owner has nothing underneath to show, and a
+      // disclosure triangle that reveals the name already on the row is noise.
+      const rolled = subs.length > 1;
+      const inner = subs.map(sub => `<li><span>${escapeHtml(sub.name)}</span><b>${escapeHtml(sub.trials)}</b></li>`).join("");
+      const head = `
+        <span class="cluster-label">${escapeHtml(o.owner)}${o.ambiguousMatch ? ` <em class="warn" title="More than one registry entity carries this name">ambiguous</em>` : ""}</span>
+        <span class="cluster-track"><span class="cluster-bar" style="width:${Math.max(3, ((Number(o.trials) || 0) / max) * 100)}%"></span></span>
+        <span class="cluster-count">${escapeHtml(o.trials)}${rolled ? `<small>${escapeHtml(subs.length)} names</small>` : ""}</span>`;
+      return rolled
+        ? `<details class="cluster"><summary>${head}</summary><ul class="cluster-examples owner-subs">${inner}</ul></details>`
+        : `<div class="cluster flat">${head}</div>`;
+    }).join("");
+    body.innerHTML = `
+      ${result.narrative ? `<p class="themes-narrative">${escapeHtml(result.narrative)}</p>` : ""}
+      ${rows}
+      <p class="themes-basis">${escapeHtml(resolution.detail || "")} ${escapeHtml(result.basis || "")}</p>`;
+  } catch (error) {
+    // The landscape above is already correct; a failed roll-up must not cast doubt on it.
+    status.textContent = "Ownership could not be resolved — the evidence above is unaffected.";
+  }
 }
 
 async function readThemes(condition) {
@@ -322,7 +407,14 @@ async function investigate(condition) {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ args: { condition, phases: "", countries: "", statuses: "" } }),
+      body: JSON.stringify({ args: {
+        condition,
+        phases: "",
+        countries: "",
+        statuses: ($("#f-status") || {}).value || "",
+        ageGroup: ($("#f-age") || {}).value || "",
+        sex: ($("#f-sex") || {}).value || "",
+      } }),
     });
     if (!response.ok) {
       if (response.status === 401) throw new Error("Sign in to the Embabel workspace, then run the query again.");
@@ -331,6 +423,7 @@ async function investigate(condition) {
     render(resultData(await response.json()));
     $("#answer").hidden = false;
     readThemes(condition); // deliberately not awaited — the landscape is already usable
+    readSponsors(condition);
   } catch (error) {
     $("#error").textContent = error instanceof Error ? error.message : "The evidence query could not be completed.";
     $("#error").hidden = false;
@@ -341,6 +434,16 @@ async function investigate(condition) {
     $("#live-dot").classList.remove("busy");
   }
 }
+
+["#f-status", "#f-age", "#f-sex"].forEach((sel) => {
+  const el = $(sel);
+  // Changing a filter re-runs the query rather than filtering what is on screen: the point is that
+  // the narrowing reaches the registry, and a client-side filter would quietly stop it doing so.
+  if (el) el.addEventListener("change", () => {
+    const condition = $("#condition").value.trim();
+    if (condition) investigate(condition);
+  });
+});
 
 $("#question-form").addEventListener("submit", (event) => {
   event.preventDefault();
