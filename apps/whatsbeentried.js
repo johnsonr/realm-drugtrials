@@ -8,6 +8,55 @@ function resultData(envelope) {
   return envelope?.data ?? envelope;
 }
 
+/* Every lens call goes through here.
+ *
+ * The reason is a failure mode that looked like nothing at all: when the server stops mid-request
+ * the promise never settles, so a page with no timeout simply waits, showing no result and no
+ * error. Silence is the worst outcome for a page whose whole claim is that it tells you what the
+ * record does and does not contain — an unanswered question must never look like an empty answer.
+ *
+ * `unreachable` is set when the request never reached a response at all, so callers can tell "this
+ * particular roll-up failed" from "nothing was fetched, and anything already on screen is stale".
+ */
+const LENS_TIMEOUT_MS = 180000;
+
+async function invokeLens(id, args) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LENS_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(`/api/v1/lenses/${encodeURIComponent(id)}/invoke`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ args }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    const err = new Error(e && e.name === "AbortError"
+      ? `The request took longer than ${Math.round(LENS_TIMEOUT_MS / 1000)} seconds and was stopped.`
+      : "The server could not be reached.");
+    err.unreachable = true;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!response.ok) {
+    // A 401 is not a failure of the evidence — it is a session that has lapsed, and the fix is the
+    // user's, so say that rather than reporting a request error they cannot act on.
+    if (response.status === 401) throw new Error("Sign in to the Embabel workspace, then run the query again.");
+    let detail = `Request failed (${response.status}).`;
+    try {
+      const body = await response.json();
+      if (body?.error) detail = body.error.message || body.error.code || detail;
+    } catch { /* not JSON — the status line is all we have */ }
+    const err = new Error(detail);
+    err.unreachable = response.status >= 500;
+    throw err;
+  }
+  return resultData(await response.json());
+}
+
 function statusClass(status) {
   if (["TERMINATED", "WITHDRAWN", "SUSPENDED"].includes(status)) return "problem";
   if (status === "COMPLETED") return "done";
@@ -303,14 +352,7 @@ async function readSponsors(condition) {
   const body = $("#sponsors-body");
   if (!status || !body) return;
   try {
-    const response = await fetch("/api/v1/lenses/trial-sponsors/invoke", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ args: { condition } }),
-    });
-    if (!response.ok) throw new Error(`Request failed (${response.status}).`);
-    const result = resultData(await response.json());
+    const result = await invokeLens("trial-sponsors", { condition });
     const owners = list(result.owners);
     if (!owners.length) {
       status.textContent = "No sponsors were named on these trials.";
@@ -338,8 +380,11 @@ async function readSponsors(condition) {
       ${rows}
       <p class="themes-basis">${escapeHtml(resolution.detail || "")} ${escapeHtml(result.basis || "")}</p>`;
   } catch (error) {
-    // The landscape above is already correct; a failed roll-up must not cast doubt on it.
-    status.textContent = "Ownership could not be resolved — the evidence above is unaffected.";
+    // A failed roll-up must not cast doubt on a landscape that IS correct — but if the request never
+    // reached the server, nothing above was fetched either and saying it is unaffected would be false.
+    status.textContent = error?.unreachable
+      ? `Ownership could not be resolved — ${error.message} Anything shown above may be out of date.`
+      : "Ownership could not be resolved — the evidence above is unaffected.";
   }
 }
 
@@ -352,14 +397,7 @@ async function readThemes(condition) {
     status.innerHTML = `<span class="spinner"></span>${text}`;
   });
   try {
-    const response = await fetch("/api/v1/lenses/trial-themes/invoke", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ args: { condition } }),
-    });
-    if (!response.ok) throw new Error(`Request failed (${response.status}).`);
-    const result = resultData(await response.json());
+    const result = await invokeLens("trial-themes", { condition });
     const clusters = list(result.clusters);
     // A written summary with no clean grouping is still worth showing.
     if (!clusters.length && !result.narrative && !result.digest) {
@@ -390,8 +428,11 @@ async function readThemes(condition) {
       ${rows}
       <p class="themes-basis">${escapeHtml(result.basis || "")}</p>`;
   } catch (error) {
-    // A failed reading must not cast doubt on the landscape above it, which is already correct.
-    status.textContent = "The thematic reading is unavailable — the evidence above is unaffected.";
+    // Same reasoning as the ownership roll-up: only claim the landscape is unaffected when we
+    // actually reached the server to find out.
+    status.textContent = error?.unreachable
+      ? `The thematic reading is unavailable — ${error.message} Anything shown above may be out of date.`
+      : "The thematic reading is unavailable — the evidence above is unaffected.";
   } finally {
     stopProgress();
   }
@@ -408,24 +449,14 @@ async function investigate(condition) {
   $("#timestamp").textContent = "Live query running";
   const stopProgress = trackProgress((text) => { $("#timestamp").textContent = text; });
   try {
-    const response = await fetch("/api/v1/lenses/trial-landscape/invoke", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ args: {
-        condition,
-        phases: "",
-        countries: "",
-        statuses: ($("#f-status") || {}).value || "",
-        ageGroup: ($("#f-age") || {}).value || "",
-        sex: ($("#f-sex") || {}).value || "",
-      } }),
-    });
-    if (!response.ok) {
-      if (response.status === 401) throw new Error("Sign in to the Embabel workspace, then run the query again.");
-      throw new Error((await response.json().catch(() => ({}))).error || `Request failed (${response.status}).`);
-    }
-    render(resultData(await response.json()));
+    render(await invokeLens("trial-landscape", {
+      condition,
+      phases: "",
+      countries: "",
+      statuses: ($("#f-status") || {}).value || "",
+      ageGroup: ($("#f-age") || {}).value || "",
+      sex: ($("#f-sex") || {}).value || "",
+    }));
     $("#answer").hidden = false;
     readThemes(condition); // deliberately not awaited — the landscape is already usable
     readSponsors(condition);
