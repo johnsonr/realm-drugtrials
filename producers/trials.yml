@@ -92,6 +92,11 @@
   cache:
     kind: ttl
     seconds: 21600
+    # An empty answer is a real answer: a disease with no registered trials will not acquire one
+    # inside the window we already trust a non-empty answer for. Without this, the rare-disease
+    # queries that legitimately return nothing are exactly the ones re-asked at the registry on
+    # every repeat. Never written on a failed fetch — "could not ask" is not "asked, nothing there".
+    negativeTtlSeconds: 21600
   cost:
     bucket: clinicaltrials
     rate: "2/sec"
@@ -105,6 +110,8 @@
   cache:
     kind: ttl
     seconds: 21600
+    # An NCT id the registry does not know stays unknown.
+    negativeTtlSeconds: 21600
   cost:
     bucket: clinicaltrials
     rate: "2/sec"
@@ -118,6 +125,8 @@
   cache:
     kind: ttl
     seconds: 86400
+    # A PMID PubMed does not hold stays absent.
+    negativeTtlSeconds: 86400
   cost:
     bucket: ncbi-eutils
     rate: "3/sec"
@@ -155,6 +164,9 @@
   cache:
     kind: ttl
     seconds: 604800   # a week — approved labelling changes on a regulatory timescale
+    # No-label is the common case (most trial interventions are unapproved compounds) and it is
+    # meaningful — see boxedWarning above. It changes on the same regulatory timescale as the label.
+    negativeTtlSeconds: 604800
   cost:
     bucket: openfda
     rate: "4/sec"

@@ -31,3 +31,20 @@ exports:
   - TrialLandscape
   - CompletedTrialsWithoutRegistryResults
   - RecruitingTrialsByCountry
+
+# NCBI E-utilities intermittently 502s and 429s even under the declared 3/sec pacing (worse without
+# an API key); ClinicalTrials.gov occasionally stalls a request and answers the next one promptly.
+# Neither is a reason to fail a landscape, so rate-limited is retried here on top of the transient
+# classes — the cost buckets keep the steady-state rate honest, so a retry is a second chance, not
+# extra pressure. deadlineShare caps any one call at a quarter of the remaining script budget: a
+# landscape fans out across three hosts inside one budget, and a source allowed to retry without
+# limit takes down the answer for the sources that responded. (The key is retryOn: a bare `on` is
+# boolean true in YAML 1.1.)
+retry:
+  attempts: 3
+  baseBackoff: 250ms
+  multiplier: 2.0
+  jitter: 0.25
+  maxBackoff: 3s
+  retryOn: [timeout, gateway, connection, rate-limited]
+  deadlineShare: 0.25
